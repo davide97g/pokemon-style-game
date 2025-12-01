@@ -8,6 +8,19 @@ import { Server } from "socket.io";
 
 dotenv.config();
 
+// Debug logging utility
+const DEBUG = process.env.DEBUG === "true" || process.env.NODE_ENV === "development";
+const debugLog = (...args: unknown[]): void => {
+  if (DEBUG) {
+    console.log(...args);
+  }
+};
+const debugWarn = (...args: unknown[]): void => {
+  if (DEBUG) {
+    console.warn(...args);
+  }
+};
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -74,21 +87,22 @@ app.use(
 );
 app.use(express.json());
 
-// Log environment configuration on startup
+// Log environment configuration on startup (always show)
 console.log("=== Server Configuration ===");
 console.log("PORT:", PORT);
 console.log(
   "CLIENT_URL:",
   process.env.CLIENT_URL || "http://localhost:5173 (default)"
 );
-console.log(
+debugLog(
   "CORS Origins:",
   Array.isArray(corsOrigins) ? corsOrigins.join(", ") : corsOrigins
 );
-console.log(
+debugLog(
   "OPEN_AI_API_KEY:",
   process.env.OPEN_AI_API_KEY ? "✓ Set" : "✗ Not set"
 );
+debugLog("DEBUG mode:", DEBUG ? "enabled" : "disabled");
 console.log("===========================");
 
 const SYSTEM_PROMPT = `You are an ancient stone statue in a fantasy game world. You have stood in the same place for many ages, observing the world around you. You speak in a wise, patient, and somewhat mysterious manner. You remember conversations with travelers who have visited you.
@@ -174,7 +188,7 @@ const getAllPlayers = (): Player[] => {
 
 // Socket.io connection handling
 io.on("connection", (socket) => {
-  console.log(
+  debugLog(
     `Player connected: ${socket.id} from origin: ${socket.handshake.headers.origin}`
   );
 
@@ -191,18 +205,18 @@ io.on("connection", (socket) => {
     players.set(socket.id, player);
 
     const allPlayers = getAllPlayers();
-    console.log(`📤 Emitting 'allplayers' to ${socket.id}:`, allPlayers);
+    debugLog(`📤 Emitting 'allplayers' to ${socket.id}:`, allPlayers);
     // Send all existing players to the new player
     socket.emit("allplayers", allPlayers);
 
-    console.log(
+    debugLog(
       `📤 Broadcasting 'newplayer' to all clients except ${socket.id}:`,
       player
     );
     // Broadcast new player to all other clients
     socket.broadcast.emit("newplayer", player);
 
-    console.log(
+    debugLog(
       `New player joined: ${socket.id} at (${player.x}, ${player.y}). Total players: ${players.size}`
     );
   });
@@ -212,7 +226,7 @@ io.on("connection", (socket) => {
 
     // If player doesn't exist yet, create them (handles race condition)
     if (!player) {
-      console.log(
+      debugWarn(
         `⚠️ Move event received from unregistered player ${socket.id}, creating player entry`
       );
       player = {
@@ -239,7 +253,7 @@ io.on("connection", (socket) => {
       direction: player.direction,
     };
 
-    console.log(
+    debugLog(
       `📤 Broadcasting 'move' from ${socket.id} to all other clients:`,
       moveData
     );
@@ -251,12 +265,12 @@ io.on("connection", (socket) => {
     const player = players.get(socket.id);
     if (player) {
       players.delete(socket.id);
-      console.log(
+      debugLog(
         `📤 Broadcasting 'remove' for disconnected player: ${socket.id}`
       );
       // Notify all clients to remove this player
       io.emit("remove", socket.id);
-      console.log(
+      debugLog(
         `Player disconnected: ${socket.id}. Remaining players: ${players.size}`
       );
     }
@@ -265,8 +279,8 @@ io.on("connection", (socket) => {
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Socket.io server ready for multiplayer connections`);
-  console.log(
+  debugLog(`Socket.io server ready for multiplayer connections`);
+  debugLog(
     `WebSocket endpoint: ws://localhost:${PORT} (or wss:// in production)`
   );
 });

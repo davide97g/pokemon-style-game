@@ -1,5 +1,18 @@
 import { io, Socket } from "socket.io-client";
 
+// Debug logging utility
+const DEBUG = import.meta.env.VITE_DEBUG === "true" || import.meta.env.DEV;
+const debugLog = (...args: unknown[]): void => {
+  if (DEBUG) {
+    console.log(...args);
+  }
+};
+const debugWarn = (...args: unknown[]): void => {
+  if (DEBUG) {
+    console.warn(...args);
+  }
+};
+
 export interface PlayerData {
   id: string;
   x: number;
@@ -27,16 +40,16 @@ export class MultiplayerService {
 
   constructor(serverUrl: string = "http://localhost:3001") {
     this.serverUrl = serverUrl;
-    console.log("MultiplayerService initialized with server URL:", this.serverUrl);
+    debugLog("MultiplayerService initialized with server URL:", this.serverUrl);
   }
 
   public connect(): void {
     if (this.socket?.connected) {
-      console.log("Already connected to multiplayer server");
+      debugLog("Already connected to multiplayer server");
       return;
     }
 
-    console.log("Attempting to connect to WebSocket server:", this.serverUrl);
+    debugLog("Attempting to connect to WebSocket server:", this.serverUrl);
 
     this.socket = io(this.serverUrl, {
       // Allow both polling and websocket - Socket.io will upgrade to websocket automatically
@@ -49,13 +62,13 @@ export class MultiplayerService {
     });
 
     this.socket.on("connect", () => {
-      console.log("✓ Connected to multiplayer server:", this.serverUrl);
-      console.log("✓ Transport:", this.socket?.io?.engine?.transport?.name);
+      debugLog("✓ Connected to multiplayer server:", this.serverUrl);
+      debugLog("✓ Transport:", this.socket?.io?.engine?.transport?.name);
       this.isConnected = true;
       if (this.socket) {
         this.socketId = this.socket.id || null;
-        console.log("Socket ID:", this.socketId);
-        console.log("Event listeners registered:", {
+        debugLog("Socket ID:", this.socketId);
+        debugLog("Event listeners registered:", {
           allplayers: this.socket.hasListeners("allplayers"),
           newplayer: this.socket.hasListeners("newplayer"),
           move: this.socket.hasListeners("move"),
@@ -72,22 +85,22 @@ export class MultiplayerService {
     });
 
     this.socket.on("disconnect", (reason) => {
-      console.log("Disconnected from multiplayer server. Reason:", reason);
+      debugLog("Disconnected from multiplayer server. Reason:", reason);
       this.isConnected = false;
       this.isPlayerRegistered = false; // Reset registration status on disconnect
     });
 
     this.socket.on("reconnect_attempt", (attemptNumber) => {
-      console.log(`Reconnection attempt ${attemptNumber}...`);
+      debugLog(`Reconnection attempt ${attemptNumber}...`);
     });
 
     this.socket.on("reconnect", (attemptNumber) => {
-      console.log(`✓ Reconnected after ${attemptNumber} attempts`);
+      debugLog(`✓ Reconnected after ${attemptNumber} attempts`);
       this.isConnected = true;
       this.isPlayerRegistered = false; // Need to re-register after reconnect
       if (this.socket) {
         this.socketId = this.socket.id || null;
-        console.log("New Socket ID after reconnect:", this.socketId);
+        debugLog("New Socket ID after reconnect:", this.socketId);
       }
       // Note: GameScene should re-register the player after reconnect
     });
@@ -98,8 +111,8 @@ export class MultiplayerService {
     });
 
     this.socket.on("allplayers", (players: PlayerData[]) => {
-      console.log("📥 Received 'allplayers' event:", players);
-      console.log("📥 Number of callbacks registered:", this.onAllPlayersCallbacks.length);
+      debugLog("📥 Received 'allplayers' event:", players);
+      debugLog("📥 Number of callbacks registered:", this.onAllPlayersCallbacks.length);
       this.onAllPlayersCallbacks.forEach((callback) => {
         try {
           callback(players);
@@ -110,8 +123,8 @@ export class MultiplayerService {
     });
 
     this.socket.on("newplayer", (player: PlayerData) => {
-      console.log("📥 Received 'newplayer' event:", player);
-      console.log("📥 Number of callbacks registered:", this.onPlayerJoinCallbacks.length);
+      debugLog("📥 Received 'newplayer' event:", player);
+      debugLog("📥 Number of callbacks registered:", this.onPlayerJoinCallbacks.length);
       this.onPlayerJoinCallbacks.forEach((callback) => {
         try {
           callback(player);
@@ -122,8 +135,8 @@ export class MultiplayerService {
     });
 
     this.socket.on("move", (player: PlayerData) => {
-      console.log("📥 Received 'move' event:", player);
-      console.log("📥 Number of callbacks registered:", this.onPlayerMoveCallbacks.length);
+      debugLog("📥 Received 'move' event:", player);
+      debugLog("📥 Number of callbacks registered:", this.onPlayerMoveCallbacks.length);
       this.onPlayerMoveCallbacks.forEach((callback) => {
         try {
           callback(player);
@@ -134,8 +147,8 @@ export class MultiplayerService {
     });
 
     this.socket.on("remove", (playerId: string) => {
-      console.log("📥 Received 'remove' event:", playerId);
-      console.log("📥 Number of callbacks registered:", this.onPlayerLeaveCallbacks.length);
+      debugLog("📥 Received 'remove' event:", playerId);
+      debugLog("📥 Number of callbacks registered:", this.onPlayerLeaveCallbacks.length);
       this.onPlayerLeaveCallbacks.forEach((callback) => {
         try {
           callback(playerId);
@@ -147,7 +160,7 @@ export class MultiplayerService {
 
     // Add a catch-all listener to see all events (for debugging)
     this.socket.onAny((eventName, ...args) => {
-      console.log("🔔 Socket.io event received:", eventName, args);
+      debugLog("🔔 Socket.io event received:", eventName, args);
     });
   }
 
@@ -164,17 +177,17 @@ export class MultiplayerService {
     if (this.socket?.connected && this.isPlayerRegistered) {
       this.socket.emit("move", { x, y, direction });
     } else if (this.socket?.connected && !this.isPlayerRegistered) {
-      console.warn("⚠️ Attempted to send movement before player registration");
+      debugWarn("⚠️ Attempted to send movement before player registration");
     }
   }
 
   public registerNewPlayer(x: number, y: number): void {
     if (this.socket?.connected) {
-      console.log("📤 Registering new player at:", x, y);
+      debugLog("📤 Registering new player at:", x, y);
       this.isPlayerRegistered = true;
       this.socket.emit("newplayer", { x, y });
     } else {
-      console.warn("⚠️ Cannot register player - not connected to server");
+      debugWarn("⚠️ Cannot register player - not connected to server");
     }
   }
 
@@ -189,22 +202,22 @@ export class MultiplayerService {
   // Callback registration methods
   public onPlayerJoin(callback: PlayerJoinCallback): void {
     this.onPlayerJoinCallbacks.push(callback);
-    console.log("✓ Registered onPlayerJoin callback. Total:", this.onPlayerJoinCallbacks.length);
+    debugLog("✓ Registered onPlayerJoin callback. Total:", this.onPlayerJoinCallbacks.length);
   }
 
   public onPlayerMove(callback: PlayerMoveCallback): void {
     this.onPlayerMoveCallbacks.push(callback);
-    console.log("✓ Registered onPlayerMove callback. Total:", this.onPlayerMoveCallbacks.length);
+    debugLog("✓ Registered onPlayerMove callback. Total:", this.onPlayerMoveCallbacks.length);
   }
 
   public onPlayerLeave(callback: PlayerLeaveCallback): void {
     this.onPlayerLeaveCallbacks.push(callback);
-    console.log("✓ Registered onPlayerLeave callback. Total:", this.onPlayerLeaveCallbacks.length);
+    debugLog("✓ Registered onPlayerLeave callback. Total:", this.onPlayerLeaveCallbacks.length);
   }
 
   public onAllPlayers(callback: AllPlayersCallback): void {
     this.onAllPlayersCallbacks.push(callback);
-    console.log("✓ Registered onAllPlayers callback. Total:", this.onAllPlayersCallbacks.length);
+    debugLog("✓ Registered onAllPlayers callback. Total:", this.onAllPlayersCallbacks.length);
   }
 
   // Remove callbacks (useful for cleanup)

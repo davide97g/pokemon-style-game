@@ -14,6 +14,14 @@ import { DialogSystem } from "./systems/DialogSystem";
 import { MenuSystem } from "./systems/MenuSystem";
 import { WeatherSystem } from "./systems/WeatherSystem";
 
+// Debug logging utility
+const DEBUG = import.meta.env.VITE_DEBUG === "true" || import.meta.env.DEV;
+const debugLog = (...args: unknown[]): void => {
+  if (DEBUG) {
+    console.log(...args);
+  }
+};
+
 export class GameScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private player?: Player;
@@ -160,10 +168,10 @@ export class GameScene extends Phaser.Scene {
     // Initialize multiplayer service
     const serverUrl =
       import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
-    console.log("=== Multiplayer Configuration ===");
-    console.log("VITE_SERVER_URL:", import.meta.env.VITE_SERVER_URL || "not set (using default)");
-    console.log("Using server URL:", serverUrl);
-    console.log("================================");
+    debugLog("=== Multiplayer Configuration ===");
+    debugLog("VITE_SERVER_URL:", import.meta.env.VITE_SERVER_URL || "not set (using default)");
+    debugLog("Using server URL:", serverUrl);
+    debugLog("================================");
     this.multiplayerService = new MultiplayerService(serverUrl);
 
     // Set up callbacks
@@ -177,7 +185,7 @@ export class GameScene extends Phaser.Scene {
         }
         // Only add if it doesn't already exist
         if (!this.remotePlayers.has(playerData.id)) {
-          console.log("Adding remote player:", playerData.id);
+          debugLog("Adding remote player:", playerData.id);
           this.addRemotePlayer(playerData);
         }
       });
@@ -191,10 +199,10 @@ export class GameScene extends Phaser.Scene {
       }
       // Only add if it doesn't already exist
       if (!this.remotePlayers.has(playerData.id)) {
-        console.log("Adding remote player on join:", playerData.id);
+        debugLog("Adding remote player on join:", playerData.id);
         this.addRemotePlayer(playerData);
       } else {
-        console.warn(
+        debugWarn(
           "Attempted to add duplicate remote player:",
           playerData.id
         );
@@ -211,7 +219,7 @@ export class GameScene extends Phaser.Scene {
       let remotePlayer = this.remotePlayers.get(playerData.id);
       // If player doesn't exist yet, create them (might have joined before we connected)
       if (!remotePlayer) {
-        console.log("Creating remote player from move event:", playerData.id);
+        debugLog("Creating remote player from move event:", playerData.id);
         this.addRemotePlayer(playerData);
         remotePlayer = this.remotePlayers.get(playerData.id);
       }
@@ -240,7 +248,7 @@ export class GameScene extends Phaser.Scene {
     const registerPlayer = () => {
       if (this.player && this.multiplayerService?.isConnectedToServer()) {
         const pos = this.player.getPosition();
-        console.log("Registering player at position:", pos.x, pos.y);
+        debugLog("Registering player at position:", pos.x, pos.y);
         this.multiplayerService.registerNewPlayer(pos.x, pos.y);
       }
     };
@@ -256,11 +264,11 @@ export class GameScene extends Phaser.Scene {
   private addRemotePlayer(playerData: PlayerData): void {
     // Double-check to prevent duplicates
     if (this.remotePlayers.has(playerData.id)) {
-      console.warn("Attempted to add duplicate remote player:", playerData.id);
+      debugWarn("Attempted to add duplicate remote player:", playerData.id);
       return; // Player already exists
     }
 
-    console.log(
+    debugLog(
       "Creating remote player:",
       playerData.id,
       "at",
@@ -282,7 +290,7 @@ export class GameScene extends Phaser.Scene {
     // }
 
     this.remotePlayers.set(playerData.id, remotePlayer);
-    console.log("Total remote players:", this.remotePlayers.size);
+    debugLog("Total remote players:", this.remotePlayers.size);
   }
 
   private removeRemotePlayer(playerId: string): void {
@@ -349,7 +357,7 @@ export class GameScene extends Phaser.Scene {
     let tileInfoMode = false;
     this.input.keyboard!.on("keydown-I", () => {
       tileInfoMode = !tileInfoMode;
-      console.log(
+      debugLog(
         `Tile info mode: ${
           tileInfoMode ? "ON" : "OFF"
         }. Click on tiles to see their GID.`
@@ -374,16 +382,16 @@ export class GameScene extends Phaser.Scene {
           const tileX = Math.floor(worldX / this.gameMap!.tileWidth);
           const tileY = Math.floor(worldY / this.gameMap!.tileHeight);
 
-          console.log(`\n=== Tile Info ===`);
-          console.log(`Layer: ${layerName}`);
-          console.log(`Position: (${tileX}, ${tileY})`);
-          console.log(`Tile Index: ${tile.index}`);
-          console.log(`Tile GID (Global ID): ${tileGID}`);
-          console.log(`Collides: ${tile.collides || false}`);
+          debugLog(`\n=== Tile Info ===`);
+          debugLog(`Layer: ${layerName}`);
+          debugLog(`Position: (${tileX}, ${tileY})`);
+          debugLog(`Tile Index: ${tile.index}`);
+          debugLog(`Tile GID (Global ID): ${tileGID}`);
+          debugLog(`Collides: ${tile.collides || false}`);
           if (tile.properties) {
-            console.log(`Properties:`, tile.properties);
+            debugLog(`Properties:`, tile.properties);
           }
-          console.log(`\nTile GID: ${tileGID}`);
+          debugLog(`\nTile GID: ${tileGID}`);
         }
       });
     });
