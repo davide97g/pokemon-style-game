@@ -1,9 +1,9 @@
+import { createServer } from "node:http";
 import { openai } from "@ai-sdk/openai";
 import { generateText } from "ai";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
-import { createServer } from "http";
 import { Server } from "socket.io";
 
 dotenv.config();
@@ -161,7 +161,7 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 

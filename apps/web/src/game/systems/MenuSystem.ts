@@ -61,7 +61,7 @@ export class MenuSystem {
       });
       entryText.setOrigin(0, 0);
       entryText.setPadding(4, 4, 4, 4);
-      this.menuContainer!.add(entryText);
+      this.menuContainer?.add(entryText);
       this.menuTexts.push(entryText);
     });
 
@@ -69,20 +69,20 @@ export class MenuSystem {
   }
 
   private setupKeyboardControls(): void {
-    const spaceKey = this.scene.input.keyboard!.addKey(
+    const spaceKey = this.scene.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.SPACE,
     );
-    const enterKey = this.scene.input.keyboard!.addKey(
+    const enterKey = this.scene.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.ENTER,
     );
-    const leftKey = this.scene.input.keyboard!.addKey(
+    const leftKey = this.scene.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.LEFT,
     );
-    const rightKey = this.scene.input.keyboard!.addKey(
+    const rightKey = this.scene.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.RIGHT,
     );
 
-    spaceKey.on("down", () => {
+    spaceKey?.on("down", () => {
       if (this.isMenuOpen) {
         if (this.currentMenuState === "volume") {
           // Go back to options menu
@@ -98,7 +98,7 @@ export class MenuSystem {
       }
     });
 
-    this.scene.input.keyboard!.on("keydown-UP", () => {
+    this.scene.input.keyboard?.on("keydown-UP", () => {
       if (this.isMenuOpen && this.currentMenuState !== "volume") {
         const maxIndex =
           this.currentMenuState === "options" ? 1 : MENU_ENTRIES.length - 1;
@@ -108,7 +108,7 @@ export class MenuSystem {
       }
     });
 
-    this.scene.input.keyboard!.on("keydown-DOWN", () => {
+    this.scene.input.keyboard?.on("keydown-DOWN", () => {
       if (this.isMenuOpen && this.currentMenuState !== "volume") {
         const maxIndex =
           this.currentMenuState === "options" ? 1 : MENU_ENTRIES.length - 1;
@@ -118,19 +118,19 @@ export class MenuSystem {
       }
     });
 
-    leftKey.on("down", () => {
+    leftKey?.on("down", () => {
       if (this.isMenuOpen && this.currentMenuState === "volume") {
         this.adjustVolume(-0.1);
       }
     });
 
-    rightKey.on("down", () => {
+    rightKey?.on("down", () => {
       if (this.isMenuOpen && this.currentMenuState === "volume") {
         this.adjustVolume(0.1);
       }
     });
 
-    enterKey.on("down", () => {
+    enterKey?.on("down", () => {
       if (this.isMenuOpen) {
         if (this.currentMenuState === "main") {
           const selectedEntry = MENU_ENTRIES[this.selectedMenuIndex];
@@ -181,7 +181,7 @@ export class MenuSystem {
         text.setFill("#ffffff");
         text.setBackgroundColor("#666666");
         if (!text.text.startsWith("►")) {
-          text.setText("► " + entryName);
+          text.setText(`► ${entryName}`);
         }
       } else {
         text.setFill("#ffffff");
@@ -203,7 +203,7 @@ export class MenuSystem {
         if (index === this.selectedMenuIndex) {
           text.setFill("#ffffff");
           text.setBackgroundColor("#666666");
-          text.setText("► " + entryName);
+          text.setText(`► ${entryName}`);
         } else {
           text.setFill("#ffffff");
           text.setBackgroundColor("");

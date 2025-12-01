@@ -1,5 +1,6 @@
 export const ASSET_PATHS = {
   tiles: "/tilesets/tuxmon-sample-32px-extruded.png",
+  solarTiles: "/tilesets/solar-tileset.png",
   map: "/tilemaps/tuxemon-town.json",
   atlas: {
     image: "/atlas/atlas.png",

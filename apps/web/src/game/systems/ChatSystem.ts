@@ -238,26 +238,26 @@ export class ChatSystem {
   }
 
   private setupChatKeyboardControls(): void {
-    const cKey = this.scene.input.keyboard!.addKey(
+    const cKey = this.scene.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.C,
     );
-    cKey.on("down", () => {
+    cKey?.on("down", () => {
       const canOpen = this.canOpenChatCheck ? this.canOpenChatCheck() : true;
       if (this.isNearStatue && !this.isChatOpen && canOpen) {
         this.openChat();
       }
     });
 
-    const escKey = this.scene.input.keyboard!.addKey(
+    const escKey = this.scene.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.ESC,
     );
-    escKey.on("down", () => {
+    escKey?.on("down", () => {
       if (this.isChatOpen) {
         this.closeChat();
       }
     });
 
-    this.scene.input.keyboard!.on("keydown", (event: KeyboardEvent) => {
+    this.scene.input.keyboard?.on("keydown", (event: KeyboardEvent) => {
       if (!this.isChatOpen) return;
 
       if (event.key === "Enter") {

@@ -109,7 +109,7 @@ export class GameScene extends Phaser.Scene {
     this.remotePlayers.clear();
 
     // Stop music
-    if (this.mainThemeMusic && this.mainThemeMusic.isPlaying) {
+    if (this.mainThemeMusic?.isPlaying) {
       this.mainThemeMusic.stop();
     }
 
@@ -121,6 +121,7 @@ export class GameScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image("tiles", ASSET_PATHS.tiles);
+    this.load.image("solarTiles", ASSET_PATHS.solarTiles);
     this.load.tilemapTiledJSON("map", ASSET_PATHS.map);
     this.load.atlas("atlas", ASSET_PATHS.atlas.image, ASSET_PATHS.atlas.json);
     this.load.audio("mainTheme", ASSET_PATHS.music.mainTheme);
@@ -131,15 +132,19 @@ export class GameScene extends Phaser.Scene {
     this.gameMap = map;
 
     const tileset = map.addTilesetImage("tuxmon-sample-32px-extruded", "tiles");
+    const solarTileset = map.addTilesetImage("solar-tileset", "solarTiles");
 
     if (!tileset) {
       console.error("Tileset not found");
       return;
     }
 
-    map.createLayer("Below Player", tileset, 0, 0);
-    const worldLayer = map.createLayer("World", tileset, 0, 0);
-    const aboveLayer = map.createLayer("Above Player", tileset, 0, 0);
+    // Create layers with both tilesets
+    const tilesets = solarTileset ? [tileset, solarTileset] : [tileset];
+
+    map.createLayer("Below Player", tilesets, 0, 0);
+    const worldLayer = map.createLayer("World", tilesets, 0, 0);
+    const aboveLayer = map.createLayer("Above Player", tilesets, 0, 0);
 
     if (worldLayer) {
       worldLayer.setCollisionByProperty({ collides: true });
@@ -184,12 +189,22 @@ export class GameScene extends Phaser.Scene {
       this.cursors = this.virtualCursors;
       this.setupMobileControls();
     } else {
-      this.cursors = this.input.keyboard!.createCursorKeys();
+      this.cursors = this.input.keyboard?.createCursorKeys();
     }
 
     const spawnX = spawnPoint.x ?? 0;
     const spawnY = spawnPoint.y ?? 0;
-    this.player = new Player(this, spawnX, spawnY, this.cursors);
+    this.player = new Player(
+      this,
+      spawnX,
+      spawnY,
+      this.cursors ?? {
+        up: { isDown: false },
+        down: { isDown: false },
+        left: { isDown: false },
+        right: { isDown: false },
+      },
+    );
 
     if (worldLayer) {
       this.physics.add.collider(this.player.getSprite(), worldLayer);
@@ -464,14 +479,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private setupMenuDialogControls(): void {
-    const spaceKey = this.input.keyboard!.addKey(
+    const spaceKey = this.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.SPACE,
     );
-    const enterKey = this.input.keyboard!.addKey(
+    const enterKey = this.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.ENTER,
     );
 
-    spaceKey.on("down", () => {
+    spaceKey?.on("down", () => {
       if (this.chatSystem?.isOpen()) return;
       if (this.dialogSystem?.isVisible()) {
         this.dialogSystem.handleAdvance();
@@ -480,7 +495,7 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    enterKey.on("down", () => {
+    enterKey?.on("down", () => {
       if (this.chatSystem?.isOpen()) return;
       if (this.dialogSystem?.isVisible()) {
         this.dialogSystem.handleAdvance();
@@ -517,7 +532,7 @@ export class GameScene extends Phaser.Scene {
 
   private setupDebugControls(): void {
     let tileInfoMode = false;
-    this.input.keyboard!.on("keydown-I", () => {
+    this.input.keyboard?.on("keydown-I", () => {
       tileInfoMode = !tileInfoMode;
       debugLog(
         `Tile info mode: ${
@@ -534,15 +549,15 @@ export class GameScene extends Phaser.Scene {
 
       const layersToCheck = ["Below Player", "World", "Above Player"];
       layersToCheck.forEach((layerName) => {
-        const layer = this.gameMap!.getLayer(layerName);
+        const layer = this.gameMap?.getLayer(layerName);
         if (!layer) return;
 
         const tile = layer.tilemapLayer?.getTileAtWorldXY(worldX, worldY);
         if (tile && tile.index !== null && tile.index !== -1) {
-          const firstGID = this.gameMap!.tilesets[0]?.firstgid || 1;
+          const firstGID = this.gameMap?.tilesets[0]?.firstgid || 1;
           const tileGID = tile.index + firstGID;
-          const tileX = Math.floor(worldX / this.gameMap!.tileWidth);
-          const tileY = Math.floor(worldY / this.gameMap!.tileHeight);
+          const tileX = Math.floor(worldX / (this.gameMap?.tileWidth || 0));
+          const tileY = Math.floor(worldY / (this.gameMap?.tileHeight || 0));
 
           debugLog(`\n=== Tile Info ===`);
           debugLog(`Layer: ${layerName}`);
@@ -558,7 +573,7 @@ export class GameScene extends Phaser.Scene {
       });
     });
 
-    this.input.keyboard!.once("keydown", (event: KeyboardEvent) => {
+    this.input.keyboard?.once("keydown", (event: KeyboardEvent) => {
       if (
         (event.key === "d" || event.key === "D") &&
         (event.metaKey || event.ctrlKey)
@@ -625,14 +640,11 @@ export class GameScene extends Phaser.Scene {
     // Ensure Web Audio context stays active
     try {
       const soundManager = this.sound as Phaser.Sound.WebAudioSoundManager;
-      if (
-        soundManager &&
-        soundManager.context &&
-        soundManager.context.state === "suspended"
-      ) {
+      if (soundManager?.context && soundManager.context.state === "suspended") {
         soundManager.context.resume();
       }
-    } catch (e) {
+    } catch (error) {
+      console.error("Error resuming audio context:", error);
       // Fallback if context is not available
     }
   }
@@ -885,13 +897,13 @@ export class GameScene extends Phaser.Scene {
       try {
         const soundManager = this.sound as Phaser.Sound.WebAudioSoundManager;
         if (
-          soundManager &&
-          soundManager.context &&
+          soundManager?.context &&
           soundManager.context.state === "suspended"
         ) {
           soundManager.context.resume();
         }
-      } catch (e) {
+      } catch (error) {
+        console.error("Error keeping audio context active:", error);
         // Fallback if context is not available
       }
     };
