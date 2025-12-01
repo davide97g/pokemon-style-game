@@ -160,6 +160,10 @@ export class GameScene extends Phaser.Scene {
     // Initialize multiplayer service
     const serverUrl =
       import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
+    console.log("=== Multiplayer Configuration ===");
+    console.log("VITE_SERVER_URL:", import.meta.env.VITE_SERVER_URL || "not set (using default)");
+    console.log("Using server URL:", serverUrl);
+    console.log("================================");
     this.multiplayerService = new MultiplayerService(serverUrl);
 
     // Set up callbacks

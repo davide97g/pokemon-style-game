@@ -13,7 +13,22 @@ bun install
 ```bash
 OPEN_AI_API_KEY=your_openai_api_key_here
 PORT=3001
+CLIENT_URL=http://localhost:5173
 ```
+
+**For Production:**
+- **Server** (`.env` in `apps/server/` or root):
+  - `OPEN_AI_API_KEY` - Your OpenAI API key (required)
+  - `PORT` - Server port (default: 3001)
+  - `CLIENT_URL` - Client URL(s) for CORS. Can be comma-separated for multiple origins (e.g., `https://yourdomain.com,https://www.yourdomain.com`)
+
+- **Client** (build-time environment variable):
+  - `VITE_SERVER_URL` - Full URL of your server (e.g., `https://api.yourdomain.com` or `https://yourdomain.com:3001`)
+  
+**Important for Production WebSocket:**
+- If your client is served over HTTPS, ensure `VITE_SERVER_URL` uses `https://` (WebSocket will automatically use `wss://`)
+- The `CLIENT_URL` on the server must match your production client domain(s)
+- Both URLs should use the same protocol (http/http or https/https)
 
 3. Start both the frontend and backend servers:
 ```bash

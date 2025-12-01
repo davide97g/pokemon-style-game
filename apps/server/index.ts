@@ -10,17 +10,48 @@ dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
+
+// Handle CORS origins - support multiple origins separated by comma
+const getCorsOrigins = (): string | string[] => {
+  const clientUrl = process.env.CLIENT_URL;
+  if (!clientUrl) {
+    return "http://localhost:5173";
+  }
+  // Support multiple origins separated by comma
+  if (clientUrl.includes(",")) {
+    return clientUrl.split(",").map((url) => url.trim());
+  }
+  return clientUrl;
+};
+
+const corsOrigins = getCorsOrigins();
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: corsOrigins,
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// Configure CORS for Express
+app.use(
+  cors({
+    origin: corsOrigins,
+    credentials: true,
+  })
+);
 app.use(express.json());
+
+// Log environment configuration on startup
+console.log("=== Server Configuration ===");
+console.log("PORT:", PORT);
+console.log("CLIENT_URL:", process.env.CLIENT_URL || "http://localhost:5173 (default)");
+console.log("CORS Origins:", Array.isArray(corsOrigins) ? corsOrigins.join(", ") : corsOrigins);
+console.log("OPEN_AI_API_KEY:", process.env.OPEN_AI_API_KEY ? "✓ Set" : "✗ Not set");
+console.log("===========================");
 
 const SYSTEM_PROMPT = `You are an ancient stone statue in a fantasy game world. You have stood in the same place for many ages, observing the world around you. You speak in a wise, patient, and somewhat mysterious manner. You remember conversations with travelers who have visited you.
 
@@ -105,7 +136,7 @@ const getAllPlayers = (): Player[] => {
 
 // Socket.io connection handling
 io.on("connection", (socket) => {
-  console.log(`Player connected: ${socket.id}`);
+  console.log(`Player connected: ${socket.id} from origin: ${socket.handshake.headers.origin}`);
 
   socket.on("newplayer", (data?: { x: number; y: number }) => {
     // Use provided position or random spawn
@@ -161,6 +192,7 @@ io.on("connection", (socket) => {
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
   console.log(`Socket.io server ready for multiplayer connections`);
+  console.log(`WebSocket endpoint: ws://localhost:${PORT} (or wss:// in production)`);
 });
