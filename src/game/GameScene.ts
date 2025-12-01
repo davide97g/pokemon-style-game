@@ -1133,17 +1133,6 @@ export class GameScene extends Phaser.Scene {
     headerBg.setStrokeStyle(2, 0x555555);
     this.chatDialogueContainer.add(headerBg);
 
-    // Message area background (black)
-    const messageAreaBg = this.add.rectangle(
-      this.chatWidth / 2,
-      (chatHeight - 50) / 2 + 25,
-      this.chatWidth,
-      chatHeight - 150,
-      0x000000,
-      1
-    );
-    this.chatDialogueContainer.add(messageAreaBg);
-
     const statueIcon = this.add.text(20, 25, "🗿", {
       font: "20px monospace",
       color: "#ffffff",
@@ -1169,9 +1158,32 @@ export class GameScene extends Phaser.Scene {
     });
     this.chatDialogueContainer.add(closeButton);
 
+    // Calculate message area bounds
+    // Header: 50px tall, ends at Y=50
+    // Input: 40px tall, centered at chatHeight-50, so starts at chatHeight-70
+    // Message area: from Y=50 to Y=chatHeight-70
+    const messageAreaTop = 50;
+    const messageAreaBottom = chatHeight - 70;
+    const messageAreaHeight = messageAreaBottom - messageAreaTop;
+    const messageAreaCenterY = (messageAreaTop + messageAreaBottom) / 2;
+
+    // Message area background (black)
+    const messageAreaBg = this.add.rectangle(
+      this.chatWidth / 2,
+      messageAreaCenterY,
+      this.chatWidth,
+      messageAreaHeight,
+      0x000000,
+      1
+    );
+    this.chatDialogueContainer.add(messageAreaBg);
+
     // Message container positioned in the black message area (centered horizontally, starting below header)
-    const messageAreaStartY = 75; // Start below header (50px) with some padding
-    this.chatMessageContainer = this.add.container(this.chatWidth / 2, messageAreaStartY);
+    const messageAreaStartY = messageAreaTop + 10; // Start below header with padding
+    this.chatMessageContainer = this.add.container(
+      this.chatWidth / 2,
+      messageAreaStartY
+    );
     this.chatDialogueContainer.add(this.chatMessageContainer);
 
     this.addChatMessage("statue", "Hello! I'm an old statue 🗿");
@@ -1179,8 +1191,8 @@ export class GameScene extends Phaser.Scene {
     // Input field area - positioned at bottom with padding
     const inputAreaY = chatHeight - 50;
     const inputPadding = 20;
-    const inputWidth = this.chatWidth - (inputPadding * 2);
-    
+    const inputWidth = this.chatWidth - inputPadding * 2;
+
     // Input field background (dark gray with border)
     const inputBg = this.add.rectangle(
       this.chatWidth / 2,
@@ -1364,14 +1376,14 @@ export class GameScene extends Phaser.Scene {
     const isPlayer = sender === "player";
     const bgColor = isPlayer ? 0x4a9eff : 0x2a2a2a;
     const textColor = "#ffffff";
-    
+
     // Message container is centered at chatWidth/2 relative to chatDialogueContainer
     // So relative to message container, center is at x=0
     // Right edge of chat box relative to message container: (chatWidth - chatWidth/2) = chatWidth/2
     // Left edge of chat box relative to message container: (0 - chatWidth/2) = -chatWidth/2
     const messagePadding = 20;
-    const maxMessageWidth = this.chatWidth - (messagePadding * 2);
-    
+    const maxMessageWidth = this.chatWidth - messagePadding * 2;
+
     // Calculate message width based on text length
     const tempText = this.add.text(0, 0, text, {
       font: "12px monospace",
@@ -1385,9 +1397,9 @@ export class GameScene extends Phaser.Scene {
     // Message container center is at 0, so:
     // Right edge: chatWidth/2 - messagePadding
     // Left edge: -chatWidth/2 + messagePadding
-    const xPos = isPlayer 
-      ? (this.chatWidth / 2) - messagePadding  // Right-aligned
-      : (-this.chatWidth / 2) + messagePadding;  // Left-aligned
+    const xPos = isPlayer
+      ? this.chatWidth / 2 - messagePadding // Right-aligned
+      : -this.chatWidth / 2 + messagePadding; // Left-aligned
 
     // Create rounded rectangle for message bubble
     const messageBg = this.add.graphics();
