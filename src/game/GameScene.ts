@@ -266,6 +266,34 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      // Prevent clicks when chat is open (unless clicking on chat UI elements)
+      if (this.isChatOpen) {
+        // Check if click is within chat container bounds
+        if (this.chatDialogueContainer) {
+          const chatBounds = {
+            x: this.chatDialogueContainer.x,
+            y: this.chatDialogueContainer.y,
+            width: this.chatWidth,
+            height: this.cameras.main.height - 200,
+          };
+          const screenX = pointer.x;
+          const screenY = pointer.y;
+
+          if (
+            screenX < chatBounds.x ||
+            screenX > chatBounds.x + chatBounds.width ||
+            screenY < chatBounds.y ||
+            screenY > chatBounds.y + chatBounds.height
+          ) {
+            // Click is outside chat, prevent propagation
+            return;
+          }
+        } else {
+          // Chat container doesn't exist, prevent all clicks
+          return;
+        }
+      }
+
       if (!tileInfoMode || !this.gameMap) return;
 
       const worldX = pointer.worldX;
@@ -313,8 +341,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(): void {
-    // Don't update player movement if menu or dialog is open
-    if (!this.player || this.isMenuOpen || this.isDialogVisible) {
+    // Don't update player movement if menu, dialog, or chat is open
+    if (
+      !this.player ||
+      this.isMenuOpen ||
+      this.isDialogVisible ||
+      this.isChatOpen
+    ) {
       if (this.player) {
         this.player.body.setVelocity(0);
         this.player.anims.stop();
@@ -667,6 +700,7 @@ export class GameScene extends Phaser.Scene {
     );
 
     spaceKey.on("down", () => {
+      if (this.isChatOpen) return;
       if (this.isDialogVisible) {
         this.handleDialogAdvance();
       } else {
@@ -675,6 +709,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.keyboard!.on("keydown-UP", () => {
+      if (this.isChatOpen) return;
       if (this.isMenuOpen && !this.isDialogVisible) {
         this.selectedMenuIndex =
           this.selectedMenuIndex > 0
@@ -685,6 +720,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.input.keyboard!.on("keydown-DOWN", () => {
+      if (this.isChatOpen) return;
       if (this.isMenuOpen && !this.isDialogVisible) {
         this.selectedMenuIndex =
           this.selectedMenuIndex < MENU_ENTRIES.length - 1
@@ -695,6 +731,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     enterKey.on("down", () => {
+      if (this.isChatOpen) return;
       if (this.isDialogVisible) {
         this.handleDialogAdvance();
       } else if (this.isMenuOpen) {
@@ -1022,74 +1059,6 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // Removed flower methods - keeping this comment for reference
-  private createFlowerTexture(): void {
-    const canvas = document.createElement("canvas");
-    canvas.width = 32;
-    canvas.height = 32;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.imageSmoothingEnabled = false;
-
-    ctx.clearRect(0, 0, 32, 32);
-
-    ctx.fillStyle = "#2d5016";
-    ctx.fillRect(14, 20, 4, 12);
-
-    ctx.fillStyle = "#4a7c2a";
-    ctx.fillRect(10, 24, 4, 3);
-    ctx.fillRect(18, 24, 4, 3);
-
-    ctx.fillStyle = "#d45a7f";
-    ctx.fillRect(12, 8, 8, 6);
-    ctx.fillRect(6, 12, 6, 8);
-    ctx.fillRect(20, 12, 6, 8);
-    ctx.fillRect(8, 18, 6, 6);
-    ctx.fillRect(18, 18, 6, 6);
-
-    ctx.fillStyle = "#f4d03f";
-    ctx.fillRect(13, 13, 6, 6);
-
-    this.textures.addCanvas("flower", canvas);
-  }
-
-  private checkIfIsolatedDecorativeTile(
-    layerData: Phaser.Tilemaps.Tile[][],
-    x: number,
-    y: number
-  ): boolean {
-    const checkRadius = 2;
-    let decorativeCount = 0;
-    let totalChecked = 0;
-
-    for (let dy = -checkRadius; dy <= checkRadius; dy++) {
-      for (let dx = -checkRadius; dx <= checkRadius; dx++) {
-        const checkX = x + dx;
-        const checkY = y + dy;
-
-        if (
-          checkX < 0 ||
-          checkY < 0 ||
-          checkY >= layerData.length ||
-          !layerData[checkY] ||
-          checkX >= layerData[checkY].length
-        ) {
-          continue;
-        }
-
-        const checkTile = layerData[checkY][checkX];
-        if (checkTile && checkTile.index > 0 && !checkTile.collides) {
-          decorativeCount++;
-        }
-        totalChecked++;
-      }
-    }
-
-    const decorativeRatio = decorativeCount / totalChecked;
-    return decorativeRatio < 0.3;
-  }
-
   private initStatueInteraction(): void {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
@@ -1140,43 +1109,56 @@ export class GameScene extends Phaser.Scene {
     this.chatDialogueContainer.setDepth(60);
     this.chatDialogueContainer.setVisible(false);
 
+    // Main chat background (dark gray with border)
     const chatBg = this.add.rectangle(
       this.chatWidth / 2,
       chatHeight / 2,
       this.chatWidth,
       chatHeight,
-      0x1a1a1a,
+      0x2a2a2a,
       0.95
     );
-    chatBg.setStrokeStyle(4, 0x666666);
+    chatBg.setStrokeStyle(3, 0x555555);
     this.chatDialogueContainer.add(chatBg);
 
+    // Header background (lighter gray)
     const headerBg = this.add.rectangle(
       this.chatWidth / 2,
-      30,
+      25,
       this.chatWidth,
       50,
-      0x2a2a2a,
+      0x3a3a3a,
       1
     );
-    headerBg.setStrokeStyle(2, 0x666666);
+    headerBg.setStrokeStyle(2, 0x555555);
     this.chatDialogueContainer.add(headerBg);
 
-    const statueIcon = this.add.text(20, 30, "🗿", {
-      font: "24px monospace",
+    // Message area background (black)
+    const messageAreaBg = this.add.rectangle(
+      this.chatWidth / 2,
+      (chatHeight - 50) / 2 + 25,
+      this.chatWidth,
+      chatHeight - 150,
+      0x000000,
+      1
+    );
+    this.chatDialogueContainer.add(messageAreaBg);
+
+    const statueIcon = this.add.text(20, 25, "🗿", {
+      font: "20px monospace",
       color: "#ffffff",
     });
     statueIcon.setOrigin(0, 0.5);
     this.chatDialogueContainer.add(statueIcon);
 
-    const headerText = this.add.text(50, 30, "Statue Chat", {
+    const headerText = this.add.text(50, 25, "Statue Chat", {
       font: "bold 16px monospace",
       color: "#ffffff",
     });
     headerText.setOrigin(0, 0.5);
     this.chatDialogueContainer.add(headerText);
 
-    const closeButton = this.add.text(this.chatWidth - 30, 30, "×", {
+    const closeButton = this.add.text(this.chatWidth - 30, 25, "×", {
       font: "bold 24px monospace",
       color: "#ffffff",
     });
@@ -1187,27 +1169,33 @@ export class GameScene extends Phaser.Scene {
     });
     this.chatDialogueContainer.add(closeButton);
 
-    this.chatMessageContainer = this.add.container(this.chatWidth / 2, 100);
+    // Message container positioned in the black message area (centered horizontally, starting below header)
+    const messageAreaStartY = 75; // Start below header (50px) with some padding
+    this.chatMessageContainer = this.add.container(this.chatWidth / 2, messageAreaStartY);
     this.chatDialogueContainer.add(this.chatMessageContainer);
 
     this.addChatMessage("statue", "Hello! I'm an old statue 🗿");
 
+    // Input field area - positioned at bottom with padding
+    const inputAreaY = chatHeight - 50;
+    const inputPadding = 20;
+    const inputWidth = this.chatWidth - (inputPadding * 2);
+    
+    // Input field background (dark gray with border)
     const inputBg = this.add.rectangle(
       this.chatWidth / 2,
-      chatHeight - 60,
-      this.chatWidth - 40,
+      inputAreaY,
+      inputWidth,
       40,
       0x2a2a2a,
       1
     );
-    inputBg.setStrokeStyle(2, 0x666666);
+    inputBg.setStrokeStyle(2, 0x555555);
     this.chatDialogueContainer.add(inputBg);
 
-    this.chatInputField = this.add.text(30, chatHeight - 60, "", {
+    this.chatInputField = this.add.text(inputPadding + 10, inputAreaY, "", {
       font: "14px monospace",
       color: "#ffffff",
-      backgroundColor: "#1a1a1a",
-      padding: { x: 10, y: 8 },
     });
     this.chatInputField.setOrigin(0, 0.5);
     this.chatInputField.setInteractive({ useHandCursor: true });
@@ -1217,8 +1205,8 @@ export class GameScene extends Phaser.Scene {
     this.chatDialogueContainer.add(this.chatInputField);
 
     const placeholderText = this.add.text(
-      30,
-      chatHeight - 60,
+      inputPadding + 10,
+      inputAreaY,
       "Type your message...",
       {
         font: "14px monospace",
@@ -1230,14 +1218,12 @@ export class GameScene extends Phaser.Scene {
     this.chatDialogueContainer.add(placeholderText);
 
     const sendButton = this.add.text(
-      this.chatWidth - 50,
-      chatHeight - 60,
+      this.chatWidth - inputPadding - 50,
+      inputAreaY,
       "Send",
       {
         font: "bold 14px monospace",
         color: "#4a9eff",
-        backgroundColor: "#2a2a2a",
-        padding: { x: 10, y: 8 },
       }
     );
     sendButton.setOrigin(0.5);
@@ -1378,23 +1364,44 @@ export class GameScene extends Phaser.Scene {
     const isPlayer = sender === "player";
     const bgColor = isPlayer ? 0x4a9eff : 0x2a2a2a;
     const textColor = "#ffffff";
-    const xPos = isPlayer ? this.chatWidth - 20 : 20;
+    
+    // Message container is centered at chatWidth/2 relative to chatDialogueContainer
+    // So relative to message container, center is at x=0
+    // Right edge of chat box relative to message container: (chatWidth - chatWidth/2) = chatWidth/2
+    // Left edge of chat box relative to message container: (0 - chatWidth/2) = -chatWidth/2
+    const messagePadding = 20;
+    const maxMessageWidth = this.chatWidth - (messagePadding * 2);
+    
+    // Calculate message width based on text length
+    const tempText = this.add.text(0, 0, text, {
+      font: "12px monospace",
+      wordWrap: { width: maxMessageWidth - 20 },
+    });
+    tempText.setVisible(false);
+    const textWidth = Math.min(tempText.width + 20, maxMessageWidth);
+    tempText.destroy();
 
-    const messageBg = this.add.rectangle(
-      xPos,
-      0,
-      Math.min(text.length * 8 + 20, this.chatWidth - 60),
-      40,
-      bgColor,
-      1
-    );
-    messageBg.setOrigin(isPlayer ? 1 : 0, 0.5);
+    // Position: player messages align right, statue messages align left
+    // Message container center is at 0, so:
+    // Right edge: chatWidth/2 - messagePadding
+    // Left edge: -chatWidth/2 + messagePadding
+    const xPos = isPlayer 
+      ? (this.chatWidth / 2) - messagePadding  // Right-aligned
+      : (-this.chatWidth / 2) + messagePadding;  // Left-aligned
+
+    // Create rounded rectangle for message bubble
+    const messageBg = this.add.graphics();
+    messageBg.fillStyle(bgColor, 1);
+    // Position based on whether it's player or statue message
+    const bgX = isPlayer ? xPos - textWidth : xPos;
+    const bgY = 0;
+    messageBg.fillRoundedRect(bgX, bgY - 20, textWidth, 40, 8);
     messageContainer.add(messageBg);
 
     const messageText = this.add.text(xPos + (isPlayer ? -10 : 10), 0, text, {
       font: "12px monospace",
       color: textColor,
-      wordWrap: { width: this.chatWidth - 80 },
+      wordWrap: { width: maxMessageWidth - 20 },
     });
     messageText.setOrigin(isPlayer ? 1 : 0, 0.5);
     messageContainer.add(messageText);
