@@ -10,6 +10,7 @@
     "dev:web": "turbo run dev --filter=web",
     "dev:server": "turbo run dev --filter=server",
     "dev:all": "turbo run dev",
+    "preview": "turbo run preview",
     "build": "turbo run build",
     "lint": "turbo run lint"
   },

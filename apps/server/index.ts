@@ -150,14 +150,17 @@ io.on("connection", (socket) => {
 
     players.set(socket.id, player);
 
+    const allPlayers = getAllPlayers();
+    console.log(`📤 Emitting 'allplayers' to ${socket.id}:`, allPlayers);
     // Send all existing players to the new player
-    socket.emit("allplayers", getAllPlayers());
+    socket.emit("allplayers", allPlayers);
 
+    console.log(`📤 Broadcasting 'newplayer' to all clients except ${socket.id}:`, player);
     // Broadcast new player to all other clients
     socket.broadcast.emit("newplayer", player);
 
     console.log(
-      `New player joined: ${socket.id} at (${player.x}, ${player.y})`
+      `New player joined: ${socket.id} at (${player.x}, ${player.y}). Total players: ${players.size}`
     );
   });
 
@@ -170,13 +173,18 @@ io.on("connection", (socket) => {
         player.direction = data.direction;
       }
 
-      // Broadcast movement to all other clients
-      socket.broadcast.emit("move", {
+      const moveData = {
         id: socket.id,
         x: player.x,
         y: player.y,
         direction: player.direction,
-      });
+      };
+
+      console.log(`📤 Broadcasting 'move' from ${socket.id} to all other clients:`, moveData);
+      // Broadcast movement to all other clients
+      socket.broadcast.emit("move", moveData);
+    } else {
+      console.warn(`⚠️ Move event received from unknown player: ${socket.id}`);
     }
   });
 
@@ -184,9 +192,10 @@ io.on("connection", (socket) => {
     const player = players.get(socket.id);
     if (player) {
       players.delete(socket.id);
+      console.log(`📤 Broadcasting 'remove' for disconnected player: ${socket.id}`);
       // Notify all clients to remove this player
       io.emit("remove", socket.id);
-      console.log(`Player disconnected: ${socket.id}`);
+      console.log(`Player disconnected: ${socket.id}. Remaining players: ${players.size}`);
     }
   });
 });

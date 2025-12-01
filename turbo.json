@@ -11,7 +11,9 @@
     },
     "lint": {
       "dependsOn": ["^lint"]
+    },
+    "preview": {
+      "dependsOn": ["^preview"]
     }
   }
 }
-
