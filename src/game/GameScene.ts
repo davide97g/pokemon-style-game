@@ -4,19 +4,19 @@
  *  - Tuxemon, https://github.com/Tuxemon/Tuxemon
  */
 
-import Phaser from 'phaser';
+import Phaser from "phaser";
 
 // Menu and Dialog state
 const MENU_ENTRIES = [
-  'Pokédex',
-  'Pokémon',
-  'Bag',
-  'Pokégear',
-  'Red',
-  'Save',
-  'Options',
-  'Debug',
-  'Exit',
+  "Pokédex",
+  "Pokémon",
+  "Bag",
+  "Pokégear",
+  "Red",
+  "Save",
+  "Options",
+  "Debug",
+  "Exit",
 ];
 
 // Flower interaction state
@@ -41,42 +41,42 @@ interface WeatherData {
 }
 
 const WEATHER_CODE_MAP: Record<number, string> = {
-  0: 'Clear sky',
-  1: 'Mainly clear',
-  2: 'Partly cloudy',
-  3: 'Overcast',
-  45: 'Foggy',
-  48: 'Depositing rime fog',
-  51: 'Light drizzle',
-  53: 'Moderate drizzle',
-  55: 'Dense drizzle',
-  56: 'Light freezing drizzle',
-  57: 'Dense freezing drizzle',
-  61: 'Slight rain',
-  63: 'Moderate rain',
-  65: 'Heavy rain',
-  66: 'Light freezing rain',
-  67: 'Heavy freezing rain',
-  71: 'Slight snow fall',
-  73: 'Moderate snow fall',
-  75: 'Heavy snow fall',
-  77: 'Snow grains',
-  80: 'Slight rain showers',
-  81: 'Moderate rain showers',
-  82: 'Violent rain showers',
-  85: 'Slight snow showers',
-  86: 'Heavy snow showers',
-  95: 'Thunderstorm',
-  96: 'Thunderstorm with slight hail',
-  99: 'Thunderstorm with heavy hail',
+  0: "Clear sky",
+  1: "Mainly clear",
+  2: "Partly cloudy",
+  3: "Overcast",
+  45: "Foggy",
+  48: "Depositing rime fog",
+  51: "Light drizzle",
+  53: "Moderate drizzle",
+  55: "Dense drizzle",
+  56: "Light freezing drizzle",
+  57: "Dense freezing drizzle",
+  61: "Slight rain",
+  63: "Moderate rain",
+  65: "Heavy rain",
+  66: "Light freezing rain",
+  67: "Heavy freezing rain",
+  71: "Slight snow fall",
+  73: "Moderate snow fall",
+  75: "Heavy snow fall",
+  77: "Snow grains",
+  80: "Slight rain showers",
+  81: "Moderate rain showers",
+  82: "Violent rain showers",
+  85: "Slight snow showers",
+  86: "Heavy snow showers",
+  95: "Thunderstorm",
+  96: "Thunderstorm with slight hail",
+  99: "Thunderstorm with heavy hail",
 };
 
 export class GameScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private player?: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
-  private showDebug = false;
+
   private weatherWidget: Phaser.GameObjects.Container | null = null;
-  private weatherData: WeatherData | null = null;
+
   private gameMap: Phaser.Tilemaps.Tilemap | null = null;
 
   // Menu and Dialog state
@@ -91,7 +91,7 @@ export class GameScene extends Phaser.Scene {
   private dialogLines: string[] = [];
   private currentDialogLineIndex = 0;
   private currentDialogCharIndex = 0;
-  private dialogTypingTimer: NodeJS.Timeout | null = null;
+  private dialogTypingTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Flower interaction state
   private flowers: Phaser.GameObjects.Image[] = [];
@@ -103,39 +103,43 @@ export class GameScene extends Phaser.Scene {
     sender: string;
     text: string;
   }> = [];
-  private chatInputText = '';
+  private chatInputText = "";
   private chatInputField: Phaser.GameObjects.Text | null = null;
   private isChatOpen = false;
   private chatMessageContainer: Phaser.GameObjects.Container | null = null;
   private chatWidth = 400;
 
   constructor() {
-    super({ key: 'GameScene' });
+    super({ key: "GameScene" });
   }
 
   preload(): void {
-    this.load.image('tiles', '/tilesets/tuxmon-sample-32px-extruded.png');
-    this.load.tilemapTiledJSON('map', '/tilemaps/tuxemon-town-expanded.json');
+    this.load.image("tiles", "/tilesets/tuxmon-sample-32px-extruded.png");
+    this.load.tilemapTiledJSON("map", "/tilemaps/tuxemon-town-expanded.json");
 
     // An atlas is a way to pack multiple images together into one texture.
-    this.load.atlas('atlas', '/atlas/atlas.png', '/atlas/atlas.json');
+    this.load.atlas("atlas", "/atlas/atlas.png", "/atlas/atlas.json");
 
     // Create flower texture programmatically (pixel art style)
     this.createFlowerTexture();
   }
 
   create(): void {
-    const map = this.make.tilemap({ key: 'map' });
+    const map = this.make.tilemap({ key: "map" });
     this.gameMap = map; // Store map reference for flower detection
 
     // Parameters are the name you gave the tileset in Tiled and then the key of the tileset image in
     // Phaser's cache (i.e. the name you used in preload)
-    const tileset = map.addTilesetImage('tuxmon-sample-32px-extruded', 'tiles');
+    const tileset = map.addTilesetImage("tuxmon-sample-32px-extruded", "tiles");
 
     // Parameters: layer name (or index) from Tiled, tileset, x, y
-    const belowLayer = map.createLayer('Below Player', tileset, 0, 0);
-    const worldLayer = map.createLayer('World', tileset, 0, 0);
-    const aboveLayer = map.createLayer('Above Player', tileset, 0, 0);
+    if (!tileset) {
+      console.error("Tileset not found");
+      return;
+    }
+    map.createLayer("Below Player", tileset, 0, 0);
+    const worldLayer = map.createLayer("World", tileset, 0, 0);
+    const aboveLayer = map.createLayer("Above Player", tileset, 0, 0);
 
     if (worldLayer) {
       worldLayer.setCollisionByProperty({ collides: true });
@@ -147,16 +151,21 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Object layers in Tiled let you embed extra info into a map - like a spawn point
-    const spawnPoint = map.findObject('Objects', (obj) => obj.name === 'Spawn Point');
+    const spawnPoint = map.findObject(
+      "Objects",
+      (obj) => obj.name === "Spawn Point"
+    );
 
     if (!spawnPoint) {
-      console.error('Spawn Point not found in map');
+      console.error("Spawn Point not found in map");
       return;
     }
 
     // Create a sprite with physics enabled
+    const spawnX = spawnPoint.x ?? 0;
+    const spawnY = spawnPoint.y ?? 0;
     this.player = this.physics.add
-      .sprite(spawnPoint.x, spawnPoint.y, 'atlas', 'misa-front')
+      .sprite(spawnX, spawnY, "atlas", "misa-front")
       .setSize(30, 40)
       .setOffset(0, 24);
 
@@ -168,9 +177,9 @@ export class GameScene extends Phaser.Scene {
     // Create the player's walking animations from the texture atlas
     const anims = this.anims;
     anims.create({
-      key: 'misa-left-walk',
-      frames: anims.generateFrameNames('atlas', {
-        prefix: 'misa-left-walk.',
+      key: "misa-left-walk",
+      frames: anims.generateFrameNames("atlas", {
+        prefix: "misa-left-walk.",
         start: 0,
         end: 3,
         zeroPad: 3,
@@ -179,9 +188,9 @@ export class GameScene extends Phaser.Scene {
       repeat: -1,
     });
     anims.create({
-      key: 'misa-right-walk',
-      frames: anims.generateFrameNames('atlas', {
-        prefix: 'misa-right-walk.',
+      key: "misa-right-walk",
+      frames: anims.generateFrameNames("atlas", {
+        prefix: "misa-right-walk.",
         start: 0,
         end: 3,
         zeroPad: 3,
@@ -190,9 +199,9 @@ export class GameScene extends Phaser.Scene {
       repeat: -1,
     });
     anims.create({
-      key: 'misa-front-walk',
-      frames: anims.generateFrameNames('atlas', {
-        prefix: 'misa-front-walk.',
+      key: "misa-front-walk",
+      frames: anims.generateFrameNames("atlas", {
+        prefix: "misa-front-walk.",
         start: 0,
         end: 3,
         zeroPad: 3,
@@ -201,9 +210,9 @@ export class GameScene extends Phaser.Scene {
       repeat: -1,
     });
     anims.create({
-      key: 'misa-back-walk',
-      frames: anims.generateFrameNames('atlas', {
-        prefix: 'misa-back-walk.',
+      key: "misa-back-walk",
+      frames: anims.generateFrameNames("atlas", {
+        prefix: "misa-back-walk.",
         start: 0,
         end: 3,
         zeroPad: 3,
@@ -233,20 +242,22 @@ export class GameScene extends Phaser.Scene {
 
     // Debug: Click on tiles to see their GID
     let tileInfoMode = false;
-    this.input.keyboard!.on('keydown-I', () => {
+    this.input.keyboard!.on("keydown-I", () => {
       tileInfoMode = !tileInfoMode;
       console.log(
-        `Tile info mode: ${tileInfoMode ? 'ON' : 'OFF'}. Click on tiles to see their GID.`
+        `Tile info mode: ${
+          tileInfoMode ? "ON" : "OFF"
+        }. Click on tiles to see their GID.`
       );
     });
 
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (!tileInfoMode || !this.gameMap) return;
 
       const worldX = pointer.worldX;
       const worldY = pointer.worldY;
 
-      const layersToCheck = ['Below Player', 'World', 'Above Player'];
+      const layersToCheck = ["Below Player", "World", "Above Player"];
       layersToCheck.forEach((layerName) => {
         const layer = this.gameMap!.getLayer(layerName);
         if (!layer) return;
@@ -267,16 +278,20 @@ export class GameScene extends Phaser.Scene {
           if (tile.properties) {
             console.log(`Properties:`, tile.properties);
           }
-          console.log(`\nTo add this as a flower, add ${tileGID} to FLOWER_TILE_GIDS array`);
           console.log(
-            `Current FLOWER_TILE_GIDS: [${Array.from(FLOWER_TILE_GIDS).join(', ')}]`
+            `\nTo add this as a flower, add ${tileGID} to FLOWER_TILE_GIDS array`
+          );
+          console.log(
+            `Current FLOWER_TILE_GIDS: [${Array.from(FLOWER_TILE_GIDS).join(
+              ", "
+            )}]`
           );
         }
       });
     });
 
     // Debug graphics
-    this.input.keyboard!.once('keydown-D', () => {
+    this.input.keyboard!.once("keydown-D", () => {
       this.physics.world.createDebugGraphic();
 
       if (worldLayer) {
@@ -327,21 +342,23 @@ export class GameScene extends Phaser.Scene {
 
     // Update the animation last
     if (this.cursors.left.isDown) {
-      this.player.anims.play('misa-left-walk', true);
+      this.player.anims.play("misa-left-walk", true);
     } else if (this.cursors.right.isDown) {
-      this.player.anims.play('misa-right-walk', true);
+      this.player.anims.play("misa-right-walk", true);
     } else if (this.cursors.up.isDown) {
-      this.player.anims.play('misa-back-walk', true);
+      this.player.anims.play("misa-back-walk", true);
     } else if (this.cursors.down.isDown) {
-      this.player.anims.play('misa-front-walk', true);
+      this.player.anims.play("misa-front-walk", true);
     } else {
       this.player.anims.stop();
 
       // If we were moving, pick an idle frame to use
-      if (prevVelocity.x < 0) this.player.setTexture('atlas', 'misa-left');
-      else if (prevVelocity.x > 0) this.player.setTexture('atlas', 'misa-right');
-      else if (prevVelocity.y < 0) this.player.setTexture('atlas', 'misa-back');
-      else if (prevVelocity.y > 0) this.player.setTexture('atlas', 'misa-front');
+      if (prevVelocity.x < 0) this.player.setTexture("atlas", "misa-left");
+      else if (prevVelocity.x > 0)
+        this.player.setTexture("atlas", "misa-right");
+      else if (prevVelocity.y < 0) this.player.setTexture("atlas", "misa-back");
+      else if (prevVelocity.y > 0)
+        this.player.setTexture("atlas", "misa-front");
     }
 
     // Check proximity to flowers
@@ -350,29 +367,32 @@ export class GameScene extends Phaser.Scene {
 
   // Weather widget functions
   private getWeatherIcon(weathercode: number): string {
-    if (weathercode === 0) return '☀️';
-    if (weathercode <= 3) return '⛅';
-    if (weathercode <= 48) return '🌫️';
-    if (weathercode <= 67) return '🌧️';
-    if (weathercode <= 86) return '❄️';
-    return '⛈️';
+    if (weathercode === 0) return "☀️";
+    if (weathercode <= 3) return "⛅";
+    if (weathercode <= 48) return "🌫️";
+    if (weathercode <= 67) return "🌧️";
+    if (weathercode <= 86) return "❄️";
+    return "⛈️";
   }
 
   private formatTime(timeString: string): string {
     const date = new Date(timeString);
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
     });
   }
 
-  private async fetchWeatherData(lat: number, lon: number): Promise<WeatherData | null> {
+  private async fetchWeatherData(
+    lat: number,
+    lon: number
+  ): Promise<WeatherData | null> {
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&daily=sunrise,sunset&timezone=auto`;
       const response = await fetch(url);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch weather data');
+        throw new Error("Failed to fetch weather data");
       }
 
       const data = await response.json();
@@ -381,14 +401,14 @@ export class GameScene extends Phaser.Scene {
         daily: data.daily,
       };
     } catch (error) {
-      console.error('Error fetching weather:', error);
+      console.error("Error fetching weather:", error);
       return null;
     }
   }
 
   private initWeatherWidget(): void {
     if (!navigator.geolocation) {
-      this.createWeatherWidget(null, 'Geolocation not supported');
+      this.createWeatherWidget(null, "Geolocation not supported");
       return;
     }
 
@@ -400,20 +420,23 @@ export class GameScene extends Phaser.Scene {
         this.createWeatherWidget(weather, null);
       },
       (err) => {
-        let errorMessage = 'Unable to get location';
+        let errorMessage = "Unable to get location";
         if (err.code === 1) {
-          errorMessage = 'Location access denied';
+          errorMessage = "Location access denied";
         } else if (err.code === 2) {
-          errorMessage = 'Location unavailable';
+          errorMessage = "Location unavailable";
         } else if (err.code === 3) {
-          errorMessage = 'Location request timed out';
+          errorMessage = "Location request timed out";
         }
         this.createWeatherWidget(null, errorMessage);
       }
     );
   }
 
-  private createWeatherWidget(weather: WeatherData | null, error: string | null): void {
+  private createWeatherWidget(
+    weather: WeatherData | null,
+    error: string | null
+  ): void {
     const width = this.cameras.main.width;
     const padding = 16;
     const widgetWidth = 280;
@@ -440,11 +463,11 @@ export class GameScene extends Phaser.Scene {
       const errorText = this.add.text(
         widgetWidth / 2,
         widgetHeight / 2,
-        error || 'Unable to fetch weather',
+        error || "Unable to fetch weather",
         {
-          font: '14px monospace',
-          fill: '#ff0000',
-          align: 'center',
+          font: "14px monospace",
+          color: "#ff0000",
+          align: "center",
           wordWrap: { width: widgetWidth - 20 },
         }
       );
@@ -454,42 +477,57 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const weatherDescription = WEATHER_CODE_MAP[weather.weathercode] || 'Unknown';
+    const weatherDescription =
+      WEATHER_CODE_MAP[weather.weathercode] || "Unknown";
     const weatherIcon = this.getWeatherIcon(weather.weathercode);
 
     const iconText = this.add.text(20, 20, weatherIcon, {
-      font: '32px monospace',
-      fill: '#000000',
+      font: "32px monospace",
+      color: "#000000",
     });
     container.add(iconText);
 
-    const tempText = this.add.text(60, 15, `${weather.temperature.toFixed(1)}°C`, {
-      font: 'bold 20px monospace',
-      fill: '#000000',
-    });
+    const tempText = this.add.text(
+      60,
+      15,
+      `${weather.temperature.toFixed(1)}°C`,
+      {
+        font: "bold 20px monospace",
+        color: "#000000",
+      }
+    );
     container.add(tempText);
 
     const descText = this.add.text(60, 40, weatherDescription, {
-      font: '12px monospace',
-      fill: '#333333',
+      font: "12px monospace",
+      color: "#333333",
       wordWrap: { width: widgetWidth - 80 },
     });
     container.add(descText);
 
-    const windText = this.add.text(20, 80, `Wind: ${weather.windspeed.toFixed(1)} km/h`, {
-      font: '12px monospace',
-      fill: '#666666',
-    });
+    const windText = this.add.text(
+      20,
+      80,
+      `Wind: ${weather.windspeed.toFixed(1)} km/h`,
+      {
+        font: "12px monospace",
+        color: "#666666",
+      }
+    );
     container.add(windText);
 
-    const timeText = this.add.text(20, 100, `Updated: ${this.formatTime(weather.time)}`, {
-      font: '11px monospace',
-      fill: '#666666',
-    });
+    const timeText = this.add.text(
+      20,
+      100,
+      `Updated: ${this.formatTime(weather.time)}`,
+      {
+        font: "11px monospace",
+        color: "#666666",
+      }
+    );
     container.add(timeText);
 
     this.weatherWidget = container;
-    this.weatherData = weather;
 
     // Update weather every 5 minutes
     setInterval(async () => {
@@ -514,8 +552,8 @@ export class GameScene extends Phaser.Scene {
   private updateWeatherWidget(weather: WeatherData): void {
     if (!this.weatherWidget || !weather) return;
 
-    this.weatherData = weather;
-    const weatherDescription = WEATHER_CODE_MAP[weather.weathercode] || 'Unknown';
+    const weatherDescription =
+      WEATHER_CODE_MAP[weather.weathercode] || "Unknown";
     const weatherIcon = this.getWeatherIcon(weather.weathercode);
 
     const children = this.weatherWidget.list.slice(1);
@@ -525,37 +563,50 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    const widgetWidth = 280;
-
     const iconText = this.add.text(20, 20, weatherIcon, {
-      font: '32px monospace',
-      fill: '#000000',
+      font: "32px monospace",
+      color: "#000000",
     });
     this.weatherWidget.add(iconText);
 
-    const tempText = this.add.text(60, 15, `${weather.temperature.toFixed(1)}°C`, {
-      font: 'bold 20px monospace',
-      fill: '#000000',
-    });
+    const tempText = this.add.text(
+      60,
+      15,
+      `${weather.temperature.toFixed(1)}°C`,
+      {
+        font: "bold 20px monospace",
+        color: "#000000",
+      }
+    );
     this.weatherWidget.add(tempText);
 
     const descText = this.add.text(60, 40, weatherDescription, {
-      font: '12px monospace',
-      fill: '#333333',
+      font: "12px monospace",
+      color: "#333333",
       wordWrap: { width: 200 },
     });
     this.weatherWidget.add(descText);
 
-    const windText = this.add.text(20, 80, `Wind: ${weather.windspeed.toFixed(1)} km/h`, {
-      font: '12px monospace',
-      fill: '#666666',
-    });
+    const windText = this.add.text(
+      20,
+      80,
+      `Wind: ${weather.windspeed.toFixed(1)} km/h`,
+      {
+        font: "12px monospace",
+        color: "#666666",
+      }
+    );
     this.weatherWidget.add(windText);
 
-    const timeText = this.add.text(20, 100, `Updated: ${this.formatTime(weather.time)}`, {
-      font: '11px monospace',
-      fill: '#666666',
-    });
+    const timeText = this.add.text(
+      20,
+      100,
+      `Updated: ${this.formatTime(weather.time)}`,
+      {
+        font: "11px monospace",
+        color: "#666666",
+      }
+    );
     this.weatherWidget.add(timeText);
   }
 
@@ -572,7 +623,14 @@ export class GameScene extends Phaser.Scene {
     this.menuContainer.setDepth(50);
     this.menuContainer.setVisible(false);
 
-    const bg = this.add.rectangle(menuWidth / 2, 0, menuWidth, height - 32, 0xcccccc, 0.85);
+    const bg = this.add.rectangle(
+      menuWidth / 2,
+      0,
+      menuWidth,
+      height - 32,
+      0xcccccc,
+      0.85
+    );
     bg.setStrokeStyle(2, 0x808080);
     this.menuContainer.add(bg);
 
@@ -584,9 +642,9 @@ export class GameScene extends Phaser.Scene {
     MENU_ENTRIES.forEach((entry, index) => {
       const y = startY + index * entryHeight;
       const entryText = this.add.text(padding, y, entry, {
-        font: '16px monospace',
-        fill: '#ffffff',
-        align: 'left',
+        font: "16px monospace",
+        color: "#ffffff",
+        align: "left",
       });
       entryText.setOrigin(0, 0);
       entryText.setPadding(4, 4, 4, 4);
@@ -594,10 +652,14 @@ export class GameScene extends Phaser.Scene {
       this.menuTexts.push(entryText);
     });
 
-    const spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    const enterKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    const spaceKey = this.input.keyboard!.addKey(
+      Phaser.Input.Keyboard.KeyCodes.SPACE
+    );
+    const enterKey = this.input.keyboard!.addKey(
+      Phaser.Input.Keyboard.KeyCodes.ENTER
+    );
 
-    spaceKey.on('down', () => {
+    spaceKey.on("down", () => {
       if (this.isDialogVisible) {
         this.handleDialogAdvance();
       } else {
@@ -605,23 +667,27 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    this.input.keyboard!.on('keydown-UP', () => {
+    this.input.keyboard!.on("keydown-UP", () => {
       if (this.isMenuOpen && !this.isDialogVisible) {
         this.selectedMenuIndex =
-          this.selectedMenuIndex > 0 ? this.selectedMenuIndex - 1 : MENU_ENTRIES.length - 1;
+          this.selectedMenuIndex > 0
+            ? this.selectedMenuIndex - 1
+            : MENU_ENTRIES.length - 1;
         this.updateMenuSelection();
       }
     });
 
-    this.input.keyboard!.on('keydown-DOWN', () => {
+    this.input.keyboard!.on("keydown-DOWN", () => {
       if (this.isMenuOpen && !this.isDialogVisible) {
         this.selectedMenuIndex =
-          this.selectedMenuIndex < MENU_ENTRIES.length - 1 ? this.selectedMenuIndex + 1 : 0;
+          this.selectedMenuIndex < MENU_ENTRIES.length - 1
+            ? this.selectedMenuIndex + 1
+            : 0;
         this.updateMenuSelection();
       }
     });
 
-    enterKey.on('down', () => {
+    enterKey.on("down", () => {
       if (this.isDialogVisible) {
         this.handleDialogAdvance();
       } else if (this.isMenuOpen) {
@@ -647,15 +713,15 @@ export class GameScene extends Phaser.Scene {
     this.menuTexts.forEach((text, index) => {
       const entryName = MENU_ENTRIES[index];
       if (index === this.selectedMenuIndex) {
-        text.setFill('#ffffff');
-        text.setBackgroundColor('#666666');
-        if (!text.text.startsWith('►')) {
-          text.setText('► ' + entryName);
+        text.setFill("#ffffff");
+        text.setBackgroundColor("#666666");
+        if (!text.text.startsWith("►")) {
+          text.setText("► " + entryName);
         }
       } else {
-        text.setFill('#ffffff');
-        text.setBackgroundColor(null);
-        if (text.text.startsWith('►')) {
+        text.setFill("#ffffff");
+        text.setBackgroundColor("");
+        if (text.text.startsWith("►")) {
           text.setText(entryName);
         }
       }
@@ -670,21 +736,23 @@ export class GameScene extends Phaser.Scene {
 
     const dialogTexts: Record<string, string> = {
       Pokédex:
-        'The Pokédex is a high-tech encyclopedia that records data on Pokémon. It automatically records data on any Pokémon you encounter or catch.',
-      Pokémon: 'You have no Pokémon with you right now.',
-      Bag: 'Your bag is empty. You should collect some items during your journey.',
+        "The Pokédex is a high-tech encyclopedia that records data on Pokémon. It automatically records data on any Pokémon you encounter or catch.",
+      Pokémon: "You have no Pokémon with you right now.",
+      Bag: "Your bag is empty. You should collect some items during your journey.",
       Pokégear:
-        'The Pokégear is a useful device that shows the time and map. It also allows you to make calls to other trainers.',
-      Red: 'This is your trainer card. It shows your name, badges, and other important information about your journey.',
-      Save: 'Would you like to save your progress? Your game will be saved to the current slot.',
+        "The Pokégear is a useful device that shows the time and map. It also allows you to make calls to other trainers.",
+      Red: "This is your trainer card. It shows your name, badges, and other important information about your journey.",
+      Save: "Would you like to save your progress? Your game will be saved to the current slot.",
       Options:
-        'Adjust game settings here. You can change the text speed, sound volume, and other preferences.',
-      Debug: 'Debug mode activated. This mode shows additional information for developers.',
-      Exit: 'Are you sure you want to exit? Any unsaved progress will be lost.',
+        "Adjust game settings here. You can change the text speed, sound volume, and other preferences.",
+      Debug:
+        "Debug mode activated. This mode shows additional information for developers.",
+      Exit: "Are you sure you want to exit? Any unsaved progress will be lost.",
     };
 
-    const speaker = entry === 'Red' ? undefined : entry;
-    this.showDialog(dialogTexts[entry] || `${entry} selected.`, speaker);
+    const speaker = entry === "Red" ? undefined : entry;
+    const dialogText = dialogTexts[entry] || `${entry} selected.`;
+    this.showDialog(dialogText, speaker);
   }
 
   // Dialog functions
@@ -712,35 +780,40 @@ export class GameScene extends Phaser.Scene {
     bg.setStrokeStyle(4, 0x4169e1);
     this.dialogContainer.add(bg);
 
-    this.dialogText = this.add.text(16, 16, '', {
-      font: '16px monospace',
-      fill: '#000000',
-      align: 'left',
+    this.dialogText = this.add.text(16, 16, "", {
+      font: "16px monospace",
+      color: "#000000",
+      align: "left",
       wordWrap: { width: dialogWidth - 80 },
     });
     this.dialogText.setOrigin(0, 0);
     this.dialogContainer.add(this.dialogText);
 
-    this.dialogIndicator = this.add.text(dialogWidth - 40, dialogHeight - 30, '->', {
-      font: '20px monospace',
-      fill: '#000000',
-      align: 'right',
-    });
+    this.dialogIndicator = this.add.text(
+      dialogWidth - 40,
+      dialogHeight - 30,
+      "->",
+      {
+        font: "20px monospace",
+        color: "#000000",
+        align: "right",
+      }
+    );
     this.dialogIndicator.setOrigin(0.5, 0.5);
     this.dialogIndicator.setVisible(false);
     this.dialogContainer.add(this.dialogIndicator);
   }
 
   private splitTextIntoLines(text: string, maxWidth: number): string[] {
-    const tempText = this.add.text(0, 0, '', {
-      font: '16px monospace',
-      fill: '#000000',
+    const tempText = this.add.text(0, 0, "", {
+      font: "16px monospace",
+      color: "#000000",
     });
     tempText.setVisible(false);
 
-    const words = text.split(' ');
+    const words = text.split(" ");
     const lines: string[] = [];
-    let currentLine = '';
+    let currentLine = "";
 
     words.forEach((word) => {
       const testLine = currentLine ? `${currentLine} ${word}` : word;
@@ -779,7 +852,7 @@ export class GameScene extends Phaser.Scene {
     this.currentDialogLineIndex = 0;
     this.currentDialogCharIndex = 0;
     if (this.dialogText) {
-      this.dialogText.setText('');
+      this.dialogText.setText("");
     }
     if (this.dialogIndicator) {
       this.dialogIndicator.setVisible(false);
@@ -806,7 +879,10 @@ export class GameScene extends Phaser.Scene {
     const currentLine = this.dialogLines[this.currentDialogLineIndex];
 
     if (this.currentDialogCharIndex < currentLine.length) {
-      const textToShow = currentLine.substring(0, this.currentDialogCharIndex + 1);
+      const textToShow = currentLine.substring(
+        0,
+        this.currentDialogCharIndex + 1
+      );
       if (this.dialogText) {
         this.dialogText.setText(textToShow);
       }
@@ -829,7 +905,7 @@ export class GameScene extends Phaser.Scene {
             duration: 500,
             yoyo: true,
             repeat: -1,
-            ease: 'Sine.easeInOut',
+            ease: "Sine.easeInOut",
           });
         }
       } else {
@@ -841,7 +917,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleDialogAdvance(): void {
-    if (this.currentDialogCharIndex < this.dialogLines[this.currentDialogLineIndex].length) {
+    if (
+      this.currentDialogCharIndex <
+      this.dialogLines[this.currentDialogLineIndex].length
+    ) {
       if (this.dialogTypingTimer) {
         clearTimeout(this.dialogTypingTimer);
         this.dialogTypingTimer = null;
@@ -849,7 +928,8 @@ export class GameScene extends Phaser.Scene {
       if (this.dialogText) {
         this.dialogText.setText(this.dialogLines[this.currentDialogLineIndex]);
       }
-      this.currentDialogCharIndex = this.dialogLines[this.currentDialogLineIndex].length;
+      this.currentDialogCharIndex =
+        this.dialogLines[this.currentDialogLineIndex].length;
 
       if (this.currentDialogLineIndex < this.dialogLines.length - 1) {
         if (this.dialogIndicator) {
@@ -864,7 +944,7 @@ export class GameScene extends Phaser.Scene {
             duration: 500,
             yoyo: true,
             repeat: -1,
-            ease: 'Sine.easeInOut',
+            ease: "Sine.easeInOut",
           });
         }
       } else {
@@ -879,12 +959,14 @@ export class GameScene extends Phaser.Scene {
       this.currentDialogLineIndex++;
       this.currentDialogCharIndex = 0;
       if (this.dialogText) {
-        this.dialogText.setText('');
+        this.dialogText.setText("");
       }
       if (this.dialogIndicator) {
         this.dialogIndicator.setVisible(false);
       }
-      this.tweens.killTweensOf(this.dialogIndicator);
+      if (this.dialogIndicator) {
+        this.tweens.killTweensOf(this.dialogIndicator);
+      }
       this.typeDialogText();
     } else {
       this.closeDialog();
@@ -915,34 +997,34 @@ export class GameScene extends Phaser.Scene {
 
   // Flower interaction functions
   private createFlowerTexture(): void {
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = 32;
     canvas.height = 32;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     ctx.imageSmoothingEnabled = false;
 
     ctx.clearRect(0, 0, 32, 32);
 
-    ctx.fillStyle = '#2d5016';
+    ctx.fillStyle = "#2d5016";
     ctx.fillRect(14, 20, 4, 12);
 
-    ctx.fillStyle = '#4a7c2a';
+    ctx.fillStyle = "#4a7c2a";
     ctx.fillRect(10, 24, 4, 3);
     ctx.fillRect(18, 24, 4, 3);
 
-    ctx.fillStyle = '#d45a7f';
+    ctx.fillStyle = "#d45a7f";
     ctx.fillRect(12, 8, 8, 6);
     ctx.fillRect(6, 12, 6, 8);
     ctx.fillRect(20, 12, 6, 8);
     ctx.fillRect(8, 18, 6, 6);
     ctx.fillRect(18, 18, 6, 6);
 
-    ctx.fillStyle = '#f4d03f';
+    ctx.fillStyle = "#f4d03f";
     ctx.fillRect(13, 13, 6, 6);
 
-    this.textures.addCanvas('flower', canvas);
+    this.textures.addCanvas("flower", canvas);
   }
 
   private checkIfIsolatedDecorativeTile(
@@ -985,22 +1067,36 @@ export class GameScene extends Phaser.Scene {
     this.flowers = [];
 
     if (!this.gameMap) {
-      console.warn('Map not loaded, cannot create flowers from tilemap');
+      console.warn("Map not loaded, cannot create flowers from tilemap");
       return;
     }
 
-    const tilemapData = this.gameMap.data;
-    if (!tilemapData || !tilemapData.tilesets || !tilemapData.tilesets[0]) {
-      console.warn('Cannot access tilemap data for flower detection');
+    const tilesets = this.gameMap.tilesets;
+    if (!tilesets || tilesets.length === 0 || !tilesets[0]) {
+      console.warn("Cannot access tilesets for flower detection");
       return;
     }
 
-    const firstGID = tilemapData.tilesets[0].firstgid || 1;
-    const tilesetData = tilemapData.tilesets[0];
+    const firstGID = tilesets[0].firstgid || 1;
+    const tilesetData = tilesets[0];
 
-    const tileProperties = new Map<number, any[]>();
-    if (tilesetData.tiles) {
-      tilesetData.tiles.forEach((tileDef: any) => {
+    interface TileProperty {
+      name: string;
+      value: boolean | string;
+    }
+
+    interface TileDefinition {
+      id: number;
+      properties?: TileProperty[];
+    }
+
+    const tileProperties = new Map<number, TileProperty[]>();
+    if (
+      "tiles" in tilesetData &&
+      Array.isArray((tilesetData as { tiles?: TileDefinition[] }).tiles)
+    ) {
+      const tiles = (tilesetData as { tiles: TileDefinition[] }).tiles;
+      tiles.forEach((tileDef: TileDefinition) => {
         if (tileDef.properties) {
           const gid = firstGID + tileDef.id;
           tileProperties.set(gid, tileDef.properties);
@@ -1008,7 +1104,7 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    const layersToCheck = ['Below Player', 'Above Player'];
+    const layersToCheck = ["Below Player", "Above Player"];
     const tileSize = this.gameMap.tileWidth;
 
     layersToCheck.forEach((layerName) => {
@@ -1035,23 +1131,31 @@ export class GameScene extends Phaser.Scene {
           const hasFlowerProperty =
             props &&
             props.some(
-              (p: any) =>
-                (p.name === 'isFlower' || p.name === 'flower' || p.name === 'type') &&
-                (p.value === true || p.value === 'flower' || p.value === 'Flower')
+              (p) =>
+                (p.name === "isFlower" ||
+                  p.name === "flower" ||
+                  p.name === "type") &&
+                (p.value === true ||
+                  p.value === "flower" ||
+                  p.value === "Flower")
             );
 
           const tileHasFlowerProp =
             tile.properties &&
             (tile.properties.isFlower === true ||
               tile.properties.flower === true ||
-              tile.properties.type === 'flower');
+              tile.properties.type === "flower");
 
           const hasExplicitFlowerMarker =
             isConfiguredFlower || hasFlowerProperty || tileHasFlowerProp;
 
           let isLikelyFlower = false;
           if (!hasExplicitFlowerMarker && FLOWER_TILE_GIDS.size === 0) {
-            const isIsolated = this.checkIfIsolatedDecorativeTile(layerData, x, y);
+            const isIsolated = this.checkIfIsolatedDecorativeTile(
+              layerData,
+              x,
+              y
+            );
             isLikelyFlower = tile.index > 0 && !tile.collides && isIsolated;
           }
 
@@ -1062,13 +1166,32 @@ export class GameScene extends Phaser.Scene {
             const worldY = y * tileSize + tileSize;
 
             const flower = this.add
-              .image(worldX, worldY, 'flower')
+              .image(worldX, worldY, "flower")
               .setOrigin(0.5, 1)
               .setDepth(5);
 
-            (flower as any).tileX = x;
-            (flower as any).tileY = y;
-            (flower as any).layerName = layerName;
+            // Store metadata for flower
+            (
+              flower as Phaser.GameObjects.Image & {
+                tileX?: number;
+                tileY?: number;
+                layerName?: string;
+              }
+            ).tileX = x;
+            (
+              flower as Phaser.GameObjects.Image & {
+                tileX?: number;
+                tileY?: number;
+                layerName?: string;
+              }
+            ).tileY = y;
+            (
+              flower as Phaser.GameObjects.Image & {
+                tileX?: number;
+                tileY?: number;
+                layerName?: string;
+              }
+            ).layerName = layerName;
 
             this.flowers.push(flower);
           }
@@ -1079,15 +1202,15 @@ export class GameScene extends Phaser.Scene {
     const objectsLayer = this.gameMap.objects;
     if (objectsLayer) {
       objectsLayer.forEach((objGroup) => {
-        if (objGroup.name === 'Objects' && objGroup.objects) {
-          objGroup.objects.forEach((obj: any) => {
+        if (objGroup.name === "Objects" && objGroup.objects) {
+          objGroup.objects.forEach((obj: Phaser.Types.Tilemaps.TiledObject) => {
             if (
               obj.name &&
-              (obj.name.toLowerCase().includes('flower') ||
-                (obj.type && obj.type.toLowerCase().includes('flower')))
+              (obj.name.toLowerCase().includes("flower") ||
+                (obj.type && obj.type.toLowerCase().includes("flower")))
             ) {
               const flower = this.add
-                .image(obj.x, obj.y, 'flower')
+                .image(obj.x ?? 0, obj.y ?? 0, "flower")
                 .setOrigin(0.5, 1)
                 .setDepth(5);
               this.flowers.push(flower);
@@ -1097,7 +1220,9 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    console.log(`Created ${this.flowers.length} interactive flowers from tilemap`);
+    console.log(
+      `Created ${this.flowers.length} interactive flowers from tilemap`
+    );
   }
 
   private checkFlowerProximity(): void {
@@ -1153,10 +1278,10 @@ export class GameScene extends Phaser.Scene {
     chatIcon.strokePath();
     this.chatIconContainer.add(chatIcon);
 
-    const pressCText = this.add.text(0, 35, 'Press C', {
-      font: '12px monospace',
-      fill: '#ffffff',
-      align: 'center',
+    const pressCText = this.add.text(0, 35, "Press C", {
+      font: "12px monospace",
+      color: "#ffffff",
+      align: "center",
     });
     pressCText.setOrigin(0.5);
     this.chatIconContainer.add(pressCText);
@@ -1193,27 +1318,27 @@ export class GameScene extends Phaser.Scene {
     headerBg.setStrokeStyle(2, 0x666666);
     this.chatDialogueContainer.add(headerBg);
 
-    const flowerIcon = this.add.text(20, 30, '🌸', {
-      font: '24px monospace',
-      fill: '#ffffff',
+    const flowerIcon = this.add.text(20, 30, "🌸", {
+      font: "24px monospace",
+      color: "#ffffff",
     });
     flowerIcon.setOrigin(0, 0.5);
     this.chatDialogueContainer.add(flowerIcon);
 
-    const headerText = this.add.text(50, 30, 'Flower Chat', {
-      font: 'bold 16px monospace',
-      fill: '#ffffff',
+    const headerText = this.add.text(50, 30, "Flower Chat", {
+      font: "bold 16px monospace",
+      color: "#ffffff",
     });
     headerText.setOrigin(0, 0.5);
     this.chatDialogueContainer.add(headerText);
 
-    const closeButton = this.add.text(this.chatWidth - 30, 30, '×', {
-      font: 'bold 24px monospace',
-      fill: '#ffffff',
+    const closeButton = this.add.text(this.chatWidth - 30, 30, "×", {
+      font: "bold 24px monospace",
+      color: "#ffffff",
     });
     closeButton.setOrigin(0.5);
     closeButton.setInteractive({ useHandCursor: true });
-    closeButton.on('pointerdown', () => {
+    closeButton.on("pointerdown", () => {
       this.closeChat();
     });
     this.chatDialogueContainer.add(closeButton);
@@ -1221,7 +1346,7 @@ export class GameScene extends Phaser.Scene {
     this.chatMessageContainer = this.add.container(this.chatWidth / 2, 100);
     this.chatDialogueContainer.add(this.chatMessageContainer);
 
-    this.addChatMessage('flower', "Hello! I'm a flower 🌸");
+    this.addChatMessage("flower", "Hello! I'm a flower 🌸");
 
     const inputBg = this.add.rectangle(
       this.chatWidth / 2,
@@ -1234,69 +1359,86 @@ export class GameScene extends Phaser.Scene {
     inputBg.setStrokeStyle(2, 0x666666);
     this.chatDialogueContainer.add(inputBg);
 
-    this.chatInputField = this.add.text(30, chatHeight - 60, '', {
-      font: '14px monospace',
-      fill: '#ffffff',
-      backgroundColor: '#1a1a1a',
+    this.chatInputField = this.add.text(30, chatHeight - 60, "", {
+      font: "14px monospace",
+      color: "#ffffff",
+      backgroundColor: "#1a1a1a",
       padding: { x: 10, y: 8 },
     });
     this.chatInputField.setOrigin(0, 0.5);
     this.chatInputField.setInteractive({ useHandCursor: true });
-    this.chatInputField.on('pointerdown', () => {
+    this.chatInputField.on("pointerdown", () => {
       this.isChatOpen = true;
     });
     this.chatDialogueContainer.add(this.chatInputField);
 
-    const placeholderText = this.add.text(30, chatHeight - 60, 'Type your message...', {
-      font: '14px monospace',
-      fill: '#666666',
-    });
+    const placeholderText = this.add.text(
+      30,
+      chatHeight - 60,
+      "Type your message...",
+      {
+        font: "14px monospace",
+        color: "#666666",
+      }
+    );
     placeholderText.setOrigin(0, 0.5);
-    placeholderText.setName('placeholder');
+    placeholderText.setName("placeholder");
     this.chatDialogueContainer.add(placeholderText);
 
-    const sendButton = this.add.text(this.chatWidth - 50, chatHeight - 60, 'Send', {
-      font: 'bold 14px monospace',
-      fill: '#4a9eff',
-      backgroundColor: '#2a2a2a',
-      padding: { x: 10, y: 8 },
-    });
+    const sendButton = this.add.text(
+      this.chatWidth - 50,
+      chatHeight - 60,
+      "Send",
+      {
+        font: "bold 14px monospace",
+        color: "#4a9eff",
+        backgroundColor: "#2a2a2a",
+        padding: { x: 10, y: 8 },
+      }
+    );
     sendButton.setOrigin(0.5);
     sendButton.setInteractive({ useHandCursor: true });
-    sendButton.on('pointerdown', () => {
+    sendButton.on("pointerdown", () => {
       this.sendChatMessage();
     });
     this.chatDialogueContainer.add(sendButton);
 
     const cKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C);
-    cKey.on('down', () => {
-      if (this.isNearFlower && !this.isChatOpen && !this.isMenuOpen && !this.isDialogVisible) {
+    cKey.on("down", () => {
+      if (
+        this.isNearFlower &&
+        !this.isChatOpen &&
+        !this.isMenuOpen &&
+        !this.isDialogVisible
+      ) {
         this.openChat();
       }
     });
 
-    const escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-    escKey.on('down', () => {
+    const escKey = this.input.keyboard!.addKey(
+      Phaser.Input.Keyboard.KeyCodes.ESC
+    );
+    escKey.on("down", () => {
       if (this.isChatOpen) {
         this.closeChat();
       }
     });
 
-    this.input.keyboard!.on('keydown', (event: KeyboardEvent) => {
+    this.input.keyboard!.on("keydown", (event: KeyboardEvent) => {
       if (!this.isChatOpen) return;
 
-      if (event.key === 'Enter') {
+      if (event.key === "Enter") {
         this.sendChatMessage();
-      } else if (event.key === 'Backspace') {
-        this.chatInputText = (this.chatInputText || '').slice(0, -1);
+      } else if (event.key === "Backspace") {
+        this.chatInputText = (this.chatInputText || "").slice(0, -1);
         this.updateChatInput(this.chatInputText);
       } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
-        this.chatInputText = (this.chatInputText || '') + event.key;
+        this.chatInputText = (this.chatInputText || "") + event.key;
         this.updateChatInput(this.chatInputText);
       }
     });
 
-    this.chatInputText = '';
+    this.chatInputText = "";
   }
 
   private updateChatIconVisibility(): void {
@@ -1310,7 +1452,7 @@ export class GameScene extends Phaser.Scene {
           duration: 500,
           yoyo: true,
           repeat: -1,
-          ease: 'Sine.easeInOut',
+          ease: "Sine.easeInOut",
         });
       } else {
         this.tweens.killTweensOf(this.chatIconContainer);
@@ -1328,10 +1470,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     const placeholder = this.chatDialogueContainer?.list.find(
-      (child) => child.name === 'placeholder'
+      (child) => child.name === "placeholder"
     );
-    if (placeholder) {
-      placeholder.setVisible(false);
+    if (placeholder && "setVisible" in placeholder) {
+      (
+        placeholder as Phaser.GameObjects.GameObject & {
+          setVisible: (visible: boolean) => void;
+        }
+      ).setVisible(false);
     }
   }
 
@@ -1342,35 +1488,39 @@ export class GameScene extends Phaser.Scene {
     }
     this.updateChatIconVisibility();
 
-    this.chatInputText = '';
-    this.updateChatInput('');
+    this.chatInputText = "";
+    this.updateChatInput("");
   }
 
   private updateChatInput(text: string): void {
     this.chatInputText = text;
     if (this.chatInputField) {
-      this.chatInputField.setText(text || '');
+      this.chatInputField.setText(text || "");
     }
 
     const placeholder = this.chatDialogueContainer?.list.find(
-      (child) => child.name === 'placeholder'
+      (child) => child.name === "placeholder"
     );
-    if (placeholder) {
-      placeholder.setVisible(text.length === 0);
+    if (placeholder && "setVisible" in placeholder) {
+      (
+        placeholder as Phaser.GameObjects.GameObject & {
+          setVisible: (visible: boolean) => void;
+        }
+      ).setVisible(text.length === 0);
     }
   }
 
   private sendChatMessage(): void {
     if (!this.chatInputText || this.chatInputText.trim().length === 0) return;
 
-    this.addChatMessage('player', this.chatInputText.trim());
+    this.addChatMessage("player", this.chatInputText.trim());
 
     const message = this.chatInputText.trim();
-    this.updateChatInput('');
+    this.updateChatInput("");
 
     setTimeout(() => {
       const response = this.getFlowerResponse(message);
-      this.addChatMessage('flower', response);
+      this.addChatMessage("flower", response);
     }, 500);
   }
 
@@ -1380,9 +1530,9 @@ export class GameScene extends Phaser.Scene {
     const messageY = this.chatMessages.length * 60 + 20;
     const messageContainer = this.add.container(0, messageY);
 
-    const isPlayer = sender === 'player';
+    const isPlayer = sender === "player";
     const bgColor = isPlayer ? 0x4a9eff : 0x2a2a2a;
-    const textColor = '#ffffff';
+    const textColor = "#ffffff";
     const xPos = isPlayer ? this.chatWidth - 20 : 20;
 
     const messageBg = this.add.rectangle(
@@ -1397,8 +1547,8 @@ export class GameScene extends Phaser.Scene {
     messageContainer.add(messageBg);
 
     const messageText = this.add.text(xPos + (isPlayer ? -10 : 10), 0, text, {
-      font: '12px monospace',
-      fill: textColor,
+      font: "12px monospace",
+      color: textColor,
       wordWrap: { width: this.chatWidth - 80 },
     });
     messageText.setOrigin(isPlayer ? 1 : 0, 0.5);
@@ -1422,37 +1572,38 @@ export class GameScene extends Phaser.Scene {
   private getFlowerResponse(playerMessage: string): string {
     const lowerMessage = playerMessage.toLowerCase();
 
-    if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
+    if (lowerMessage.includes("hello") || lowerMessage.includes("hi")) {
       return "Hello there! Nice to meet you!";
     }
-    if (lowerMessage.includes('how') && lowerMessage.includes('you')) {
+    if (lowerMessage.includes("how") && lowerMessage.includes("you")) {
       return "I'm doing great, thank you for asking! The sun feels wonderful today.";
     }
-    if (lowerMessage.includes('name')) {
+    if (lowerMessage.includes("name")) {
       return "I don't have a name, but you can call me Flower! What's your name?";
     }
-    if (lowerMessage.includes('weather')) {
-      return 'The weather is perfect for growing! I love sunny days.';
+    if (lowerMessage.includes("weather")) {
+      return "The weather is perfect for growing! I love sunny days.";
     }
-    if (lowerMessage.includes('beautiful') || lowerMessage.includes('pretty')) {
+    if (lowerMessage.includes("beautiful") || lowerMessage.includes("pretty")) {
       return "Aww, thank you! That's so kind of you to say!";
     }
-    if (lowerMessage.includes('bye') || lowerMessage.includes('goodbye')) {
-      return 'Goodbye! Come visit me again soon!';
+    if (lowerMessage.includes("bye") || lowerMessage.includes("goodbye")) {
+      return "Goodbye! Come visit me again soon!";
     }
-    if (lowerMessage.includes('help')) {
+    if (lowerMessage.includes("help")) {
       return "I'm just a flower, but I'm here to chat! Ask me anything!";
     }
 
     const defaultResponses = [
       "That's interesting! Tell me more!",
-      'I love chatting with you!',
-      'The world is so beautiful, don\'t you think?',
+      "I love chatting with you!",
+      "The world is so beautiful, don't you think?",
       "I wish I could move around like you do!",
-      'Have you seen any other flowers nearby?',
+      "Have you seen any other flowers nearby?",
       "I'm happy just being here, growing and blooming!",
     ];
-    return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
+    return defaultResponses[
+      Math.floor(Math.random() * defaultResponses.length)
+    ];
   }
 }
-
