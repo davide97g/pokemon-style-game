@@ -7,10 +7,15 @@
 import Phaser from "phaser";
 import { ASSET_PATHS } from "./config/AssetPaths";
 import { Player } from "./entities/Player";
+import { RemotePlayer } from "./entities/RemotePlayer";
 import { ChatSystem } from "./systems/ChatSystem";
 import { DialogSystem } from "./systems/DialogSystem";
 import { MenuSystem } from "./systems/MenuSystem";
 import { WeatherSystem } from "./systems/WeatherSystem";
+import {
+  MultiplayerService,
+  PlayerData,
+} from "./services/MultiplayerService";
 
 export class GameScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -23,8 +28,23 @@ export class GameScene extends Phaser.Scene {
   protected weatherSystem?: WeatherSystem;
   private chatSystem?: ChatSystem;
 
+  // Multiplayer
+  private multiplayerService?: MultiplayerService;
+  private remotePlayers: Map<string, RemotePlayer> = new Map();
+
   constructor() {
     super({ key: "GameScene" });
+  }
+
+  shutdown(): void {
+    // Clean up multiplayer connection
+    if (this.multiplayerService) {
+      this.multiplayerService.disconnect();
+    }
+
+    // Clean up remote players
+    this.remotePlayers.forEach((player) => player.destroy());
+    this.remotePlayers.clear();
   }
 
   preload(): void {
@@ -108,6 +128,9 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
+    // Initialize multiplayer
+    this.initMultiplayer();
+
     this.setupDebugControls();
     this.setupInputHandling();
   }
@@ -134,6 +157,125 @@ export class GameScene extends Phaser.Scene {
 
     // Setup keyboard controls for menu/dialog
     this.setupMenuDialogControls();
+  }
+
+  private initMultiplayer(): void {
+    // Initialize multiplayer service
+    const serverUrl = import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
+    this.multiplayerService = new MultiplayerService(serverUrl);
+
+    // Set up callbacks
+    this.multiplayerService.onAllPlayers((players: PlayerData[]) => {
+      // Add all existing players (excluding our own)
+      const socketId = this.multiplayerService?.getSocketId();
+      players.forEach((playerData) => {
+        // Don't create remote player for ourselves
+        if (playerData.id === socketId) {
+          return;
+        }
+        // Only add if it doesn't already exist
+        if (!this.remotePlayers.has(playerData.id)) {
+          console.log("Adding remote player:", playerData.id);
+          this.addRemotePlayer(playerData);
+        }
+      });
+    });
+
+    this.multiplayerService.onPlayerJoin((playerData: PlayerData) => {
+      // Don't create remote player for ourselves
+      const socketId = this.multiplayerService?.getSocketId();
+      if (playerData.id === socketId) {
+        return;
+      }
+      // Only add if it doesn't already exist
+      if (!this.remotePlayers.has(playerData.id)) {
+        console.log("Adding remote player on join:", playerData.id);
+        this.addRemotePlayer(playerData);
+      } else {
+        console.warn("Attempted to add duplicate remote player:", playerData.id);
+      }
+    });
+
+    this.multiplayerService.onPlayerMove((playerData: PlayerData) => {
+      // Don't process moves for our own player
+      const socketId = this.multiplayerService?.getSocketId();
+      if (playerData.id === socketId) {
+        return;
+      }
+
+      let remotePlayer = this.remotePlayers.get(playerData.id);
+      // If player doesn't exist yet, create them (might have joined before we connected)
+      if (!remotePlayer) {
+        console.log("Creating remote player from move event:", playerData.id);
+        this.addRemotePlayer(playerData);
+        remotePlayer = this.remotePlayers.get(playerData.id);
+      }
+
+      if (remotePlayer) {
+        remotePlayer.updatePosition(
+          playerData.x,
+          playerData.y,
+          playerData.direction
+        );
+      }
+    });
+
+    this.multiplayerService.onPlayerLeave((playerId: string) => {
+      this.removeRemotePlayer(playerId);
+    });
+
+    // Connect player position updates to multiplayer service
+    if (this.player) {
+      this.player.setOnPositionUpdate((x, y, direction) => {
+        this.multiplayerService?.sendMovement(x, y, direction);
+      });
+    }
+
+    // Connect to server
+    this.multiplayerService.connect();
+
+    // Register new player with initial position after connection is established
+    // Wait a bit for connection to be fully established
+    this.time.delayedCall(100, () => {
+      if (this.player && this.multiplayerService?.isConnectedToServer()) {
+        const pos = this.player.getPosition();
+        this.multiplayerService.registerNewPlayer(pos.x, pos.y);
+      }
+    });
+  }
+
+  private addRemotePlayer(playerData: PlayerData): void {
+    // Double-check to prevent duplicates
+    if (this.remotePlayers.has(playerData.id)) {
+      console.warn("Attempted to add duplicate remote player:", playerData.id);
+      return; // Player already exists
+    }
+
+    console.log("Creating remote player:", playerData.id, "at", playerData.x, playerData.y);
+    const remotePlayer = new RemotePlayer(
+      this,
+      playerData.id,
+      playerData.x,
+      playerData.y,
+      playerData.direction
+    );
+
+    // Add collision with world layer
+    const worldLayer = this.gameMap?.getLayer("World");
+    if (worldLayer) {
+      this.physics.add.collider(remotePlayer.getSprite(), worldLayer);
+    }
+
+    this.remotePlayers.set(playerData.id, remotePlayer);
+    console.log("Total remote players:", this.remotePlayers.size);
+  }
+
+  private removeRemotePlayer(playerId: string): void {
+    const remotePlayer = this.remotePlayers.get(playerId);
+    if (remotePlayer) {
+      remotePlayer.destroy();
+      this.remotePlayers.delete(playerId);
+    }
   }
 
   private setupMenuDialogControls(): void {
@@ -231,17 +373,19 @@ export class GameScene extends Phaser.Scene {
       });
     });
 
-    this.input.keyboard!.once("keydown-D", () => {
-      this.physics.world.createDebugGraphic();
+    this.input.keyboard!.once("keydown", (event: KeyboardEvent) => {
+      if ((event.key === "d" || event.key === "D") && (event.metaKey || event.ctrlKey)) {
+        this.physics.world.createDebugGraphic();
 
-      const worldLayer = this.gameMap?.getLayer("World");
-      if (worldLayer) {
-        const graphics = this.add.graphics().setAlpha(0.75).setDepth(20);
-        worldLayer.tilemapLayer?.renderDebug(graphics, {
-          tileColor: null,
-          collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255),
-          faceColor: new Phaser.Display.Color(40, 39, 37, 255),
-        });
+        const worldLayer = this.gameMap?.getLayer("World");
+        if (worldLayer) {
+          const graphics = this.add.graphics().setAlpha(0.75).setDepth(20);
+          worldLayer.tilemapLayer?.renderDebug(graphics, {
+            tileColor: null,
+            collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255),
+            faceColor: new Phaser.Display.Color(40, 39, 37, 255),
+          });
+        }
       }
     });
   }

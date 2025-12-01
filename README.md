@@ -6,22 +6,32 @@ A Pokemon-style game built with React 19, TypeScript, and Phaser.
 
 1. Install dependencies:
 ```bash
-npm install
+bun install
 ```
 
-2. Start the development server:
+2. Create a `.env` file in the root directory with your OpenAI API key:
 ```bash
-npm run dev
+OPEN_AI_API_KEY=your_openai_api_key_here
+PORT=3001
 ```
 
-3. Build for production:
+3. Start both the frontend and backend servers:
 ```bash
-npm run build
+bun run dev:all
 ```
 
-4. Preview production build:
+Or start them separately:
+- Frontend only: `bun run dev`
+- Backend only: `bun run dev:server`
+
+4. Build for production:
 ```bash
-npm run preview
+bun run build
+```
+
+5. Preview production build:
+```bash
+bun run preview
 ```
 
 ## Project Structure
@@ -40,4 +50,12 @@ npm run preview
 - TypeScript
 - Phaser 3
 - Vite
+- Vercel AI SDK (for LLM-powered chat)
+- Express (backend API server)
+- Bun (package manager and runtime)
+
+## Features
+
+- **LLM-Powered Chat**: The stone statue chat is powered by OpenAI's GPT models via the Vercel AI SDK, providing intelligent, context-aware responses with conversation history.
+- **Model Agnostic**: Built with Vercel AI SDK, making it easy to switch between different LLM providers (OpenAI, Anthropic, etc.)
 

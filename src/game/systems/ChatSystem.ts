@@ -4,8 +4,8 @@ import {
   CHAT_MAX_MESSAGES,
   CHAT_WIDTH,
 } from "../config/GameConstants";
-import { getStatueResponse } from "../utils/ChatUtils";
 import { STATUE_GREETING } from "../config/ChatConfig";
+import { ChatService } from "../services/ChatService";
 
 interface ChatMessage {
   container: Phaser.GameObjects.Container;
@@ -26,9 +26,13 @@ export class ChatSystem {
   private chatMessageContainer: Phaser.GameObjects.Container | null = null;
   private playerPosition?: { x: number; y: number };
   private canOpenChatCheck?: () => boolean;
+  private chatService: ChatService;
+  private isLoadingResponse = false;
+  private loadingIndicator: Phaser.GameObjects.Text | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+    this.chatService = new ChatService();
   }
 
   public setStatuePosition(position: { x: number; y: number }): void {
@@ -354,18 +358,54 @@ export class ChatSystem {
     }
   }
 
-  private sendChatMessage(): void {
+  private async sendChatMessage(): Promise<void> {
     if (!this.chatInputText || this.chatInputText.trim().length === 0) return;
-
-    this.addChatMessage("player", this.chatInputText.trim());
+    if (this.isLoadingResponse) return;
 
     const message = this.chatInputText.trim();
+    this.addChatMessage("player", message);
     this.updateChatInput("");
+    this.isLoadingResponse = true;
+    this.showLoadingIndicator();
 
-    setTimeout(() => {
-      const response = getStatueResponse(message);
+    try {
+      const response = await this.chatService.sendMessage(message);
+      this.hideLoadingIndicator();
       this.addChatMessage("statue", response);
-    }, 500);
+    } catch (error) {
+      this.hideLoadingIndicator();
+      console.error("Error getting chat response:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to get response. Please try again.";
+      this.addChatMessage(
+        "statue",
+        "I apologize, but I'm having trouble responding right now. " +
+          errorMessage
+      );
+    } finally {
+      this.isLoadingResponse = false;
+    }
+  }
+
+  private showLoadingIndicator(): void {
+    if (!this.chatMessageContainer) return;
+
+    const messageY = this.chatMessages.length * 60 + 20;
+    this.loadingIndicator = this.scene.add.text(0, messageY, "🗿 Typing...", {
+      font: "12px monospace",
+      color: "#888888",
+    });
+    this.loadingIndicator.setOrigin(0, 0.5);
+    this.chatMessageContainer.add(this.loadingIndicator);
+  }
+
+  private hideLoadingIndicator(): void {
+    if (this.loadingIndicator) {
+      this.loadingIndicator.destroy();
+      this.loadingIndicator = null;
+    }
   }
 
   private addChatMessage(sender: string, text: string): void {
