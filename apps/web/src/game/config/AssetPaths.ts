@@ -5,5 +5,8 @@ export const ASSET_PATHS = {
     image: "/atlas/atlas.png",
     json: "/atlas/atlas.json",
   },
+  music: {
+    mainTheme: "/songs/main-theme.mp3",
+  },
 } as const;
 

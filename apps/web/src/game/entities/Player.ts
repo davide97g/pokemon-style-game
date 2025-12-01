@@ -189,5 +189,15 @@ export class Player {
   public getDirection(): string | undefined {
     return this.currentDirection;
   }
+
+  public isMoving(): boolean {
+    return (
+      this.cursors?.up.isDown ||
+      this.cursors?.down.isDown ||
+      this.cursors?.left.isDown ||
+      this.cursors?.right.isDown ||
+      false
+    );
+  }
 }
 

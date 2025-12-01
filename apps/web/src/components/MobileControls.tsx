@@ -77,13 +77,21 @@ const MobileControls = ({ onDirectionChange, onActionA, onActionB, onStart }: Mo
   }
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-50">
-      {/* D-Pad Controls - Bottom Left */}
-      <div className="absolute bottom-6 left-6 pointer-events-auto">
-        <div className="relative w-32 h-32">
+    <div className="fixed inset-0 pointer-events-none z-[9999]" style={{ zIndex: 9999 }}>
+      {/* Semi-transparent overlay background for controls area */}
+      <div 
+        className="absolute bottom-0 left-0 right-0 h-32 bg-black opacity-50 pointer-events-none"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+      />
+      
+      {/* Controls Container - Bottom Center */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-3">
+        {/* D-Pad Controls */}
+        <div className="relative w-24 h-24">
           {/* Up Button */}
           <button
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-12 bg-gray-800 bg-opacity-80 border-2 border-gray-600 rounded-lg flex items-center justify-center text-white text-xl font-bold active:bg-gray-700 select-none touch-none"
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-10 bg-gray-900 border-2 border-gray-400 rounded-lg flex items-center justify-center text-white text-lg font-bold active:bg-gray-600 select-none touch-none shadow-lg"
+            style={{ backgroundColor: 'rgba(17, 24, 39, 0.95)', borderColor: 'rgba(156, 163, 175, 0.8)' }}
             onTouchStart={(e) => handleTouchStart('up', e)}
             onTouchEnd={(e) => handleTouchEnd('up', e)}
             onMouseDown={() => handleMouseDown('up')}
@@ -96,7 +104,8 @@ const MobileControls = ({ onDirectionChange, onActionA, onActionB, onStart }: Mo
 
           {/* Down Button */}
           <button
-            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-12 bg-gray-800 bg-opacity-80 border-2 border-gray-600 rounded-lg flex items-center justify-center text-white text-xl font-bold active:bg-gray-700 select-none touch-none"
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-10 h-10 bg-gray-900 border-2 border-gray-400 rounded-lg flex items-center justify-center text-white text-lg font-bold active:bg-gray-600 select-none touch-none shadow-lg"
+            style={{ backgroundColor: 'rgba(17, 24, 39, 0.95)', borderColor: 'rgba(156, 163, 175, 0.8)' }}
             onTouchStart={(e) => handleTouchStart('down', e)}
             onTouchEnd={(e) => handleTouchEnd('down', e)}
             onMouseDown={() => handleMouseDown('down')}
@@ -109,7 +118,8 @@ const MobileControls = ({ onDirectionChange, onActionA, onActionB, onStart }: Mo
 
           {/* Left Button */}
           <button
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-12 h-12 bg-gray-800 bg-opacity-80 border-2 border-gray-600 rounded-lg flex items-center justify-center text-white text-xl font-bold active:bg-gray-700 select-none touch-none"
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 bg-gray-900 border-2 border-gray-400 rounded-lg flex items-center justify-center text-white text-lg font-bold active:bg-gray-600 select-none touch-none shadow-lg"
+            style={{ backgroundColor: 'rgba(17, 24, 39, 0.95)', borderColor: 'rgba(156, 163, 175, 0.8)' }}
             onTouchStart={(e) => handleTouchStart('left', e)}
             onTouchEnd={(e) => handleTouchEnd('left', e)}
             onMouseDown={() => handleMouseDown('left')}
@@ -122,7 +132,8 @@ const MobileControls = ({ onDirectionChange, onActionA, onActionB, onStart }: Mo
 
           {/* Right Button */}
           <button
-            className="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 bg-gray-800 bg-opacity-80 border-2 border-gray-600 rounded-lg flex items-center justify-center text-white text-xl font-bold active:bg-gray-700 select-none touch-none"
+            className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 bg-gray-900 border-2 border-gray-400 rounded-lg flex items-center justify-center text-white text-lg font-bold active:bg-gray-600 select-none touch-none shadow-lg"
+            style={{ backgroundColor: 'rgba(17, 24, 39, 0.95)', borderColor: 'rgba(156, 163, 175, 0.8)' }}
             onTouchStart={(e) => handleTouchStart('right', e)}
             onTouchEnd={(e) => handleTouchEnd('right', e)}
             onMouseDown={() => handleMouseDown('right')}
@@ -133,43 +144,46 @@ const MobileControls = ({ onDirectionChange, onActionA, onActionB, onStart }: Mo
             →
           </button>
         </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          {/* A Button - Main Action */}
+          <button
+            className="w-14 h-14 bg-green-600 border-2 border-green-300 rounded-full flex items-center justify-center text-white text-lg font-bold active:bg-green-500 select-none touch-none shadow-lg"
+            style={{ backgroundColor: 'rgba(22, 163, 74, 0.95)', borderColor: 'rgba(134, 239, 172, 0.8)' }}
+            onTouchStart={handleActionA}
+            onTouchEnd={(e) => e.preventDefault()}
+            onClick={handleActionA}
+            aria-label="Action A - Interact"
+          >
+            A
+          </button>
+
+          {/* B Button - Cancel */}
+          <button
+            className="w-14 h-14 bg-red-600 border-2 border-red-300 rounded-full flex items-center justify-center text-white text-lg font-bold active:bg-red-500 select-none touch-none shadow-lg"
+            style={{ backgroundColor: 'rgba(220, 38, 38, 0.95)', borderColor: 'rgba(252, 165, 165, 0.8)' }}
+            onTouchStart={handleActionB}
+            onTouchEnd={(e) => e.preventDefault()}
+            onClick={handleActionB}
+            aria-label="Action B - Cancel"
+          >
+            B
+          </button>
+
+          {/* Start Button */}
+          <button
+            className="w-16 h-10 bg-blue-600 border-2 border-blue-300 rounded-lg flex items-center justify-center text-white text-xs font-bold active:bg-blue-500 select-none touch-none shadow-lg"
+            style={{ backgroundColor: 'rgba(37, 99, 235, 0.95)', borderColor: 'rgba(147, 197, 253, 0.8)' }}
+            onTouchStart={handleStart}
+            onTouchEnd={(e) => e.preventDefault()}
+            onClick={handleStart}
+            aria-label="Start - Menu"
+          >
+            START
+          </button>
+        </div>
       </div>
-
-      {/* Action Buttons - Bottom Right */}
-      <div className="absolute bottom-6 right-6 pointer-events-auto flex flex-col gap-4">
-        {/* A Button - Main Action */}
-        <button
-          className="w-16 h-16 bg-green-600 bg-opacity-80 border-2 border-green-400 rounded-full flex items-center justify-center text-white text-xl font-bold active:bg-green-700 select-none touch-none shadow-lg"
-          onTouchStart={handleActionA}
-          onTouchEnd={(e) => e.preventDefault()}
-          onClick={handleActionA}
-          aria-label="Action A - Interact"
-        >
-          A
-        </button>
-
-        {/* B Button - Cancel */}
-        <button
-          className="w-16 h-16 bg-red-600 bg-opacity-80 border-2 border-red-400 rounded-full flex items-center justify-center text-white text-xl font-bold active:bg-red-700 select-none touch-none shadow-lg"
-          onTouchStart={handleActionB}
-          onTouchEnd={(e) => e.preventDefault()}
-          onClick={handleActionB}
-          aria-label="Action B - Cancel"
-        >
-          B
-        </button>
-      </div>
-
-      {/* Start Button - Top Right */}
-      <button
-        className="absolute top-6 right-6 w-20 h-10 bg-blue-600 bg-opacity-80 border-2 border-blue-400 rounded-lg flex items-center justify-center text-white text-sm font-bold active:bg-blue-700 select-none touch-none shadow-lg pointer-events-auto"
-        onTouchStart={handleStart}
-        onTouchEnd={(e) => e.preventDefault()}
-        onClick={handleStart}
-        aria-label="Start - Menu"
-      >
-        START
-      </button>
     </div>
   );
 };

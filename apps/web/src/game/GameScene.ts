@@ -69,6 +69,11 @@ export class GameScene extends Phaser.Scene {
   private multiplayerService?: MultiplayerService;
   private remotePlayers: Map<string, RemotePlayer> = new Map();
 
+  // Music
+  private mainThemeMusic?: Phaser.Sound.HTML5AudioSound;
+  private isMusicPlaying = false;
+  private musicVolume = 0.5; // Default volume (0-1)
+
   constructor() {
     super({ key: "GameScene" });
   }
@@ -93,12 +98,18 @@ export class GameScene extends Phaser.Scene {
     // Clean up remote players
     this.remotePlayers.forEach((player) => player.destroy());
     this.remotePlayers.clear();
+
+    // Stop music
+    if (this.mainThemeMusic && this.mainThemeMusic.isPlaying) {
+      this.mainThemeMusic.stop();
+    }
   }
 
   preload(): void {
     this.load.image("tiles", ASSET_PATHS.tiles);
     this.load.tilemapTiledJSON("map", ASSET_PATHS.map);
     this.load.atlas("atlas", ASSET_PATHS.atlas.image, ASSET_PATHS.atlas.json);
+    this.load.audio("mainTheme", ASSET_PATHS.music.mainTheme);
   }
 
   create(): void {
@@ -177,6 +188,12 @@ export class GameScene extends Phaser.Scene {
     // Initialize systems
     this.initSystems();
 
+    // Initialize music
+    this.initMusic();
+
+    // Start music after game loads
+    this.startMusic();
+
     if (oldStatue) {
       this.chatSystem?.setStatuePosition({
         x: oldStatue.x ?? 0,
@@ -229,7 +246,10 @@ export class GameScene extends Phaser.Scene {
     if (this.chatSystem?.isOpen()) return;
     if (this.dialogSystem?.isVisible()) {
       this.dialogSystem.handleAdvance();
-    } else if (this.chatSystem?.getIsNearStatue() && !this.chatSystem.isOpen()) {
+    } else if (
+      this.chatSystem?.getIsNearStatue() &&
+      !this.chatSystem.isOpen()
+    ) {
       const canOpenCheck = this.chatSystem.getCanOpenChatCheck();
       const canOpen = canOpenCheck ? canOpenCheck() : true;
       if (canOpen) {
@@ -264,6 +284,9 @@ export class GameScene extends Phaser.Scene {
     this.menuSystem = new MenuSystem(this);
     this.menuSystem.setOnMenuSelect((text, speaker) => {
       this.dialogSystem?.showDialog(text, speaker);
+    });
+    this.menuSystem.setOnVolumeChange((volume) => {
+      this.setMusicVolume(volume);
     });
 
     // Initialize dialog system
@@ -556,5 +579,39 @@ export class GameScene extends Phaser.Scene {
       this.chatSystem?.updatePlayerPosition(this.player.getPosition());
       this.chatSystem?.checkStatueProximity();
     }
+  }
+
+  private initMusic(): void {
+    // Load volume from localStorage if available
+    const savedVolume = localStorage.getItem("musicVolume");
+    if (savedVolume !== null) {
+      this.musicVolume = parseFloat(savedVolume);
+    }
+
+    // Create music instance
+    this.mainThemeMusic = this.sound.add("mainTheme", {
+      loop: true,
+      volume: this.musicVolume,
+    }) as Phaser.Sound.HTML5AudioSound;
+  }
+
+  private startMusic(): void {
+    if (this.mainThemeMusic && !this.isMusicPlaying) {
+      this.mainThemeMusic.play();
+      this.isMusicPlaying = true;
+    }
+  }
+
+  public setMusicVolume(volume: number): void {
+    this.musicVolume = Math.max(0, Math.min(1, volume)); // Clamp between 0 and 1
+    if (this.mainThemeMusic) {
+      this.mainThemeMusic.setVolume(this.musicVolume);
+    }
+    // Save to localStorage
+    localStorage.setItem("musicVolume", this.musicVolume.toString());
+  }
+
+  public getMusicVolume(): number {
+    return this.musicVolume;
   }
 }

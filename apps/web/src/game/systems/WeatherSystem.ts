@@ -48,9 +48,9 @@ export class WeatherSystem {
     error: string | null
   ): void {
     const width = this.scene.cameras.main.width;
-    const padding = 16;
-    const widgetWidth = 280;
-    const widgetHeight = 140;
+    const padding = 12;
+    const widgetWidth = 200;
+    const widgetHeight = 100;
     const x = width - widgetWidth - padding;
     const y = padding;
 
@@ -75,7 +75,7 @@ export class WeatherSystem {
         widgetHeight / 2,
         error || "Unable to fetch weather",
         {
-          font: "14px monospace",
+          font: "11px monospace",
           color: "#ff0000",
           align: "center",
           wordWrap: { width: widgetWidth - 20 },
@@ -120,47 +120,47 @@ export class WeatherSystem {
       WEATHER_CODE_MAP[weather.weathercode] || "Unknown";
     const weatherIcon = getWeatherIcon(weather.weathercode);
 
-    const iconText = this.scene.add.text(20, 20, weatherIcon, {
-      font: "32px monospace",
+    const iconText = this.scene.add.text(15, 15, weatherIcon, {
+      font: "24px monospace",
       color: "#000000",
     });
     container.add(iconText);
 
     const tempText = this.scene.add.text(
-      60,
-      15,
+      50,
+      12,
       `${weather.temperature.toFixed(1)}°C`,
       {
-        font: "bold 20px monospace",
+        font: "bold 16px monospace",
         color: "#000000",
       }
     );
     container.add(tempText);
 
-    const descText = this.scene.add.text(60, 40, weatherDescription, {
-      font: "12px monospace",
+    const descText = this.scene.add.text(50, 32, weatherDescription, {
+      font: "10px monospace",
       color: "#333333",
-      wordWrap: { width: widgetWidth - 80 },
+      wordWrap: { width: widgetWidth - 60 },
     });
     container.add(descText);
 
     const windText = this.scene.add.text(
-      20,
-      80,
+      15,
+      60,
       `Wind: ${weather.windspeed.toFixed(1)} km/h`,
       {
-        font: "12px monospace",
+        font: "10px monospace",
         color: "#666666",
       }
     );
     container.add(windText);
 
     const timeText = this.scene.add.text(
-      20,
-      100,
+      15,
+      75,
       `Updated: ${formatTime(weather.time)}`,
       {
-        font: "11px monospace",
+        font: "9px monospace",
         color: "#666666",
       }
     );
@@ -177,7 +177,7 @@ export class WeatherSystem {
       }
     });
 
-    const widgetWidth = 280;
+    const widgetWidth = 200;
     this.renderWeatherContent(this.weatherWidget, weather, widgetWidth);
   }
 }
