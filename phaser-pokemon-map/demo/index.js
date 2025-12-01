@@ -30,6 +30,32 @@ let showDebug = false
 let weatherWidget = null
 let weatherData = null
 
+// Menu and Dialog state
+const MENU_ENTRIES = [
+  'Pokédex',
+  'Pokémon',
+  'Bag',
+  'Pokégear',
+  'Red',
+  'Save',
+  'Options',
+  'Debug',
+  'Exit'
+]
+let isMenuOpen = false
+let selectedMenuIndex = 0
+let menuContainer = null
+let menuTexts = []
+let dialogContainer = null
+let dialogText = null
+let dialogIndicator = null
+let isDialogVisible = false
+let dialogLines = []
+let currentDialogLineIndex = 0
+let currentDialogCharIndex = 0
+let dialogTypingTimer = null
+let dialogScene = null
+
 function preload() {
   this.load.image('tiles', '../assets/tilesets/tuxmon-sample-32px-extruded.png')
   this.load.tilemapTiledJSON('map', '../assets/tilemaps/tuxemon-town-expanded.json')
@@ -136,6 +162,10 @@ function create() {
 
   cursors = this.input.keyboard.createCursorKeys()
 
+  // Initialize menu and dialog
+  initMenu.call(this)
+  initDialog.call(this)
+
   // Initialize weather widget
   initWeatherWidget.call(this)
 
@@ -155,6 +185,13 @@ function create() {
 }
 
 function update(time, delta) {
+  // Don't update player movement if menu or dialog is open
+  if (isMenuOpen || isDialogVisible) {
+    player.body.setVelocity(0)
+    player.anims.stop()
+    return
+  }
+
   const speed = 175
   const prevVelocity = player.body.velocity.clone()
 
@@ -439,4 +476,363 @@ const updateWeatherWidget = function (weather) {
     fill: '#666666'
   })
   weatherWidget.add(timeText)
+}
+
+// Menu functions
+const initMenu = function () {
+  const width = this.cameras.main.width
+  const height = this.cameras.main.height
+  const menuWidth = 192
+  const menuX = width - menuWidth - 16
+  const menuY = 16
+
+  // Create container for menu
+  menuContainer = this.add.container(menuX, menuY)
+  menuContainer.setScrollFactor(0)
+  menuContainer.setDepth(50)
+  menuContainer.setVisible(false)
+
+  // Create background
+  const bg = this.add.rectangle(
+    menuWidth / 2,
+    0,
+    menuWidth,
+    height - 32,
+    0xcccccc,
+    0.85
+  )
+  bg.setStrokeStyle(2, 0x808080)
+  menuContainer.add(bg)
+
+  // Create menu entries
+  menuTexts = []
+  const entryHeight = 24
+  const padding = 12
+  const startY = padding
+
+  MENU_ENTRIES.forEach((entry, index) => {
+    const y = startY + index * entryHeight
+    const entryText = this.add.text(padding, y, entry, {
+      font: '16px monospace',
+      fill: '#ffffff',
+      align: 'left'
+    })
+    entryText.setOrigin(0, 0)
+    entryText.setPadding(4, 4, 4, 4)
+    menuContainer.add(entryText)
+    menuTexts.push(entryText)
+  })
+
+  // Setup keyboard handlers
+  const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+  const enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER)
+
+  // Spacebar to toggle menu or advance dialog
+  spaceKey.on('down', () => {
+    if (isDialogVisible) {
+      // Advance dialog (same as Enter)
+      handleDialogAdvance.call(this)
+    } else {
+      // Toggle menu
+      toggleMenu.call(this)
+    }
+  })
+
+  // Arrow keys for menu navigation
+  this.input.keyboard.on('keydown-UP', () => {
+    if (isMenuOpen && !isDialogVisible) {
+      selectedMenuIndex = selectedMenuIndex > 0 ? selectedMenuIndex - 1 : MENU_ENTRIES.length - 1
+      updateMenuSelection.call(this)
+    }
+  })
+
+  this.input.keyboard.on('keydown-DOWN', () => {
+    if (isMenuOpen && !isDialogVisible) {
+      selectedMenuIndex = selectedMenuIndex < MENU_ENTRIES.length - 1 ? selectedMenuIndex + 1 : 0
+      updateMenuSelection.call(this)
+    }
+  })
+
+  // Enter to select menu entry or advance dialog
+  enterKey.on('down', () => {
+    if (isDialogVisible) {
+      handleDialogAdvance.call(this)
+    } else if (isMenuOpen) {
+      const selectedEntry = MENU_ENTRIES[selectedMenuIndex]
+      handleMenuSelect.call(this, selectedEntry)
+    }
+  })
+}
+
+const toggleMenu = function () {
+  isMenuOpen = !isMenuOpen
+  menuContainer.setVisible(isMenuOpen)
+  
+  if (isMenuOpen) {
+    selectedMenuIndex = 0
+    updateMenuSelection.call(this)
+  }
+}
+
+const updateMenuSelection = function () {
+  menuTexts.forEach((text, index) => {
+    const entryName = MENU_ENTRIES[index]
+    if (index === selectedMenuIndex) {
+      text.setFill('#ffffff')
+      text.setBackgroundColor('#666666')
+      // Add arrow indicator
+      if (!text.text.startsWith('►')) {
+        text.setText('► ' + entryName)
+      }
+    } else {
+      text.setFill('#ffffff')
+      text.setBackgroundColor(null)
+      // Remove arrow indicator
+      if (text.text.startsWith('►')) {
+        text.setText(entryName)
+      }
+    }
+  })
+}
+
+const handleMenuSelect = function (entry) {
+  isMenuOpen = false
+  menuContainer.setVisible(false)
+
+  const dialogTexts = {
+    'Pokédex': 'The Pokédex is a high-tech encyclopedia that records data on Pokémon. It automatically records data on any Pokémon you encounter or catch.',
+    'Pokémon': 'You have no Pokémon with you right now.',
+    'Bag': 'Your bag is empty. You should collect some items during your journey.',
+    'Pokégear': 'The Pokégear is a useful device that shows the time and map. It also allows you to make calls to other trainers.',
+    'Red': 'This is your trainer card. It shows your name, badges, and other important information about your journey.',
+    'Save': 'Would you like to save your progress? Your game will be saved to the current slot.',
+    'Options': 'Adjust game settings here. You can change the text speed, sound volume, and other preferences.',
+    'Debug': 'Debug mode activated. This mode shows additional information for developers.',
+    'Exit': 'Are you sure you want to exit? Any unsaved progress will be lost.'
+  }
+
+  const speaker = entry === 'Red' ? undefined : entry
+  showDialog.call(this, dialogTexts[entry] || `${entry} selected.`, speaker)
+}
+
+// Dialog functions
+const initDialog = function () {
+  dialogScene = this
+  const width = this.cameras.main.width
+  const height = this.cameras.main.height
+  const dialogWidth = width - 64
+  const dialogHeight = 100
+  const dialogX = 32
+  const dialogY = height - dialogHeight - 32
+
+  // Create container for dialog
+  dialogContainer = this.add.container(dialogX, dialogY)
+  dialogContainer.setScrollFactor(0)
+  dialogContainer.setDepth(50)
+  dialogContainer.setVisible(false)
+
+  // Create background (light blue with darker blue border)
+  const bg = this.add.rectangle(
+    dialogWidth / 2,
+    dialogHeight / 2,
+    dialogWidth,
+    dialogHeight,
+    0xadd8e6,
+    1
+  )
+  bg.setStrokeStyle(4, 0x4169e1)
+  dialogContainer.add(bg)
+
+  // Create dialog text
+  dialogText = this.add.text(16, 16, '', {
+    font: '16px monospace',
+    fill: '#000000',
+    align: 'left',
+    wordWrap: { width: dialogWidth - 80 }
+  })
+  dialogText.setOrigin(0, 0)
+  dialogContainer.add(dialogText)
+
+  // Create "->" indicator with jumping animation
+  dialogIndicator = this.add.text(dialogWidth - 40, dialogHeight - 30, '->', {
+    font: '20px monospace',
+    fill: '#000000',
+    align: 'right'
+  })
+  dialogIndicator.setOrigin(0.5, 0.5)
+  dialogIndicator.setVisible(false)
+  dialogContainer.add(dialogIndicator)
+}
+
+const splitTextIntoLines = function (text, maxWidth) {
+  // Use Phaser's text measurement for accurate wrapping
+  const tempText = dialogScene.add.text(0, 0, '', {
+    font: '16px monospace',
+    fill: '#000000'
+  })
+  tempText.setVisible(false)
+  
+  const words = text.split(' ')
+  const lines = []
+  let currentLine = ''
+
+  words.forEach((word) => {
+    const testLine = currentLine ? `${currentLine} ${word}` : word
+    tempText.setText(testLine)
+    const textWidth = tempText.width
+
+    if (textWidth > maxWidth && currentLine) {
+      lines.push(currentLine)
+      currentLine = word
+    } else {
+      currentLine = testLine
+    }
+  })
+
+  if (currentLine) {
+    lines.push(currentLine)
+  }
+
+  tempText.destroy()
+  return lines
+}
+
+const showDialog = function (text, speaker) {
+  // Clear any existing typing timer
+  if (dialogTypingTimer) {
+    clearTimeout(dialogTypingTimer)
+    dialogTypingTimer = null
+  }
+
+  isDialogVisible = true
+  const fullText = speaker ? `${speaker}: ${text}` : text
+  
+  // Split text into lines based on dialog width
+  const dialogWidth = dialogScene.cameras.main.width - 64
+  const maxTextWidth = dialogWidth - 80
+  dialogLines = splitTextIntoLines(fullText, maxTextWidth)
+  
+  currentDialogLineIndex = 0
+  currentDialogCharIndex = 0
+  dialogText.setText('')
+  dialogIndicator.setVisible(false)
+  dialogContainer.setVisible(true)
+
+  // Start typing animation
+  typeDialogText.call(dialogScene)
+  
+  // Stop any existing indicator animation
+  dialogScene.tweens.killTweensOf(dialogIndicator)
+}
+
+const typeDialogText = function () {
+  if (currentDialogLineIndex >= dialogLines.length) {
+    // All lines shown, hide indicator
+    dialogIndicator.setVisible(false)
+    return
+  }
+
+  const currentLine = dialogLines[currentDialogLineIndex]
+  
+  if (currentDialogCharIndex < currentLine.length) {
+    // Type next character
+    const textToShow = currentLine.substring(0, currentDialogCharIndex + 1)
+    dialogText.setText(textToShow)
+    currentDialogCharIndex++
+    
+    // Continue typing
+    dialogTypingTimer = setTimeout(() => {
+      typeDialogText.call(this)
+    }, 30) // 30ms per character for typing speed
+  } else {
+    // Current line finished
+    // Show indicator if there are more lines
+    if (currentDialogLineIndex < dialogLines.length - 1) {
+      dialogIndicator.setVisible(true)
+      // Reset position and start jumping animation
+      dialogScene.tweens.killTweensOf(dialogIndicator)
+      const dialogHeight = 100
+      const originalY = dialogHeight - 30
+      dialogIndicator.y = originalY
+      dialogScene.tweens.add({
+        targets: dialogIndicator,
+        y: originalY - 5,
+        duration: 500,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      })
+    } else {
+      dialogIndicator.setVisible(false)
+    }
+  }
+}
+
+const handleDialogAdvance = function () {
+  // If still typing current line, skip to end
+  if (currentDialogCharIndex < dialogLines[currentDialogLineIndex].length) {
+    // Skip to end of current line
+    if (dialogTypingTimer) {
+      clearTimeout(dialogTypingTimer)
+      dialogTypingTimer = null
+    }
+    dialogText.setText(dialogLines[currentDialogLineIndex])
+    currentDialogCharIndex = dialogLines[currentDialogLineIndex].length
+    
+    // Show indicator if there are more lines
+    if (currentDialogLineIndex < dialogLines.length - 1) {
+      dialogIndicator.setVisible(true)
+      // Reset position and start jumping animation
+      dialogScene.tweens.killTweensOf(dialogIndicator)
+      const dialogHeight = 100
+      const originalY = dialogHeight - 30
+      dialogIndicator.y = originalY
+      dialogScene.tweens.add({
+        targets: dialogIndicator,
+        y: originalY - 5,
+        duration: 500,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      })
+    } else {
+      dialogIndicator.setVisible(false)
+    }
+    return
+  }
+
+  // Current line finished, check if there are more lines
+  if (currentDialogLineIndex < dialogLines.length - 1) {
+    // There are more lines, advance to next line
+    currentDialogLineIndex++
+    currentDialogCharIndex = 0
+    dialogText.setText('')
+    dialogIndicator.setVisible(false)
+    // Stop indicator animation
+    this.tweens.killTweensOf(dialogIndicator)
+    typeDialogText.call(this)
+  } else {
+    // All lines shown, close dialog
+    closeDialog.call(this)
+  }
+}
+
+const closeDialog = function () {
+  // Clear typing timer
+  if (dialogTypingTimer) {
+    clearTimeout(dialogTypingTimer)
+    dialogTypingTimer = null
+  }
+
+  // Stop indicator animation
+  if (dialogScene && dialogIndicator) {
+    dialogScene.tweens.killTweensOf(dialogIndicator)
+  }
+
+  isDialogVisible = false
+  dialogContainer.setVisible(false)
+  dialogLines = []
+  currentDialogLineIndex = 0
+  currentDialogCharIndex = 0
+  dialogIndicator.setVisible(false)
 }
