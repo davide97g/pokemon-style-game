@@ -19,14 +19,8 @@ const MENU_ENTRIES = [
   "Exit",
 ];
 
-// Flower interaction state
-const FLOWER_PROXIMITY_DISTANCE = 80; // pixels
-
-// Configure flower tile GIDs here if you know them
-const FLOWER_TILE_GIDS = new Set<number>([
-  // Add specific tile GIDs that represent flowers
-  284,
-]);
+// Statue interaction state
+const STATUE_PROXIMITY_DISTANCE = 60; // pixels
 
 // Weather widget types
 interface WeatherData {
@@ -93,9 +87,9 @@ export class GameScene extends Phaser.Scene {
   private currentDialogCharIndex = 0;
   private dialogTypingTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Flower interaction state
-  private flowers: Phaser.GameObjects.Image[] = [];
-  private isNearFlower = false;
+  // Statue interaction state
+  private oldStatuePosition: { x: number; y: number } | null = null;
+  private isNearStatue = false;
   private chatIconContainer: Phaser.GameObjects.Container | null = null;
   private chatDialogueContainer: Phaser.GameObjects.Container | null = null;
   private chatMessages: Array<{
@@ -115,18 +109,15 @@ export class GameScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image("tiles", "/tilesets/tuxmon-sample-32px-extruded.png");
-    this.load.tilemapTiledJSON("map", "/tilemaps/tuxemon-town-expanded.json");
+    this.load.tilemapTiledJSON("map", "/tilemaps/tuxemon-town.json");
 
     // An atlas is a way to pack multiple images together into one texture.
     this.load.atlas("atlas", "/atlas/atlas.png", "/atlas/atlas.json");
-
-    // Create flower texture programmatically (pixel art style)
-    this.createFlowerTexture();
   }
 
   create(): void {
     const map = this.make.tilemap({ key: "map" });
-    this.gameMap = map; // Store map reference for flower detection
+    this.gameMap = map;
 
     // Parameters are the name you gave the tileset in Tiled and then the key of the tileset image in
     // Phaser's cache (i.e. the name you used in preload)
@@ -159,6 +150,32 @@ export class GameScene extends Phaser.Scene {
     if (!spawnPoint) {
       console.error("Spawn Point not found in map");
       return;
+    }
+
+    // Find and store "old statue" object (ID 288) position
+    const oldStatue = map.findObject("Objects", (obj) => {
+      const parsedObj = obj as Phaser.GameObjects.GameObject & {
+        properties: [
+          {
+            name: string;
+            type: string;
+            value: string;
+          }
+        ];
+        id: number;
+      };
+      if (!parsedObj.properties) return false;
+      return (
+        parsedObj.properties.find((property) => property.name === "type")
+          ?.value === "intelligent"
+      );
+    });
+
+    if (oldStatue) {
+      this.oldStatuePosition = {
+        x: oldStatue.x ?? 0,
+        y: oldStatue.y ?? 0,
+      };
     }
 
     // Create a sprite with physics enabled
@@ -234,11 +251,8 @@ export class GameScene extends Phaser.Scene {
     // Initialize weather widget
     this.initWeatherWidget();
 
-    // Create flowers on the map
-    this.createFlowers();
-
-    // Initialize flower interaction UI
-    this.initFlowerInteraction();
+    // Initialize statue interaction UI
+    this.initStatueInteraction();
 
     // Debug: Click on tiles to see their GID
     let tileInfoMode = false;
@@ -278,14 +292,7 @@ export class GameScene extends Phaser.Scene {
           if (tile.properties) {
             console.log(`Properties:`, tile.properties);
           }
-          console.log(
-            `\nTo add this as a flower, add ${tileGID} to FLOWER_TILE_GIDS array`
-          );
-          console.log(
-            `Current FLOWER_TILE_GIDS: [${Array.from(FLOWER_TILE_GIDS).join(
-              ", "
-            )}]`
-          );
+          console.log(`\nTile GID: ${tileGID}`);
         }
       });
     });
@@ -361,8 +368,8 @@ export class GameScene extends Phaser.Scene {
         this.player.setTexture("atlas", "misa-front");
     }
 
-    // Check proximity to flowers
-    this.checkFlowerProximity();
+    // Check proximity to statue
+    this.checkStatueProximity();
   }
 
   // Weather widget functions
@@ -995,7 +1002,27 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // Flower interaction functions
+  // Statue interaction functions
+  private checkStatueProximity(): void {
+    let nearStatue = false;
+
+    if (this.oldStatuePosition && this.player) {
+      const dx = this.player.x - this.oldStatuePosition.x;
+      const dy = this.player.y - this.oldStatuePosition.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < STATUE_PROXIMITY_DISTANCE) {
+        nearStatue = true;
+      }
+    }
+
+    if (this.isNearStatue !== nearStatue) {
+      this.isNearStatue = nearStatue;
+      this.updateChatIconVisibility();
+    }
+  }
+
+  // Removed flower methods - keeping this comment for reference
   private createFlowerTexture(): void {
     const canvas = document.createElement("canvas");
     canvas.width = 32;
@@ -1063,190 +1090,7 @@ export class GameScene extends Phaser.Scene {
     return decorativeRatio < 0.3;
   }
 
-  private createFlowers(): void {
-    this.flowers = [];
-
-    if (!this.gameMap) {
-      console.warn("Map not loaded, cannot create flowers from tilemap");
-      return;
-    }
-
-    const tilesets = this.gameMap.tilesets;
-    if (!tilesets || tilesets.length === 0 || !tilesets[0]) {
-      console.warn("Cannot access tilesets for flower detection");
-      return;
-    }
-
-    const firstGID = tilesets[0].firstgid || 1;
-    const tilesetData = tilesets[0];
-
-    interface TileProperty {
-      name: string;
-      value: boolean | string;
-    }
-
-    interface TileDefinition {
-      id: number;
-      properties?: TileProperty[];
-    }
-
-    const tileProperties = new Map<number, TileProperty[]>();
-    if (
-      "tiles" in tilesetData &&
-      Array.isArray((tilesetData as { tiles?: TileDefinition[] }).tiles)
-    ) {
-      const tiles = (tilesetData as { tiles: TileDefinition[] }).tiles;
-      tiles.forEach((tileDef: TileDefinition) => {
-        if (tileDef.properties) {
-          const gid = firstGID + tileDef.id;
-          tileProperties.set(gid, tileDef.properties);
-        }
-      });
-    }
-
-    const layersToCheck = ["Below Player", "Above Player"];
-    const tileSize = this.gameMap.tileWidth;
-
-    layersToCheck.forEach((layerName) => {
-      const layer = this.gameMap!.getLayer(layerName);
-      if (!layer || !layer.tilemapLayer) return;
-
-      const layerData = layer.tilemapLayer.layer.data;
-      if (!layerData) return;
-
-      for (let y = 0; y < layerData.length; y++) {
-        const row = layerData[y];
-        if (!row) continue;
-
-        for (let x = 0; x < row.length; x++) {
-          const tile = row[x];
-          if (!tile || tile.index === null || tile.index === -1) continue;
-
-          const tileGID = tile.index + firstGID;
-
-          const isConfiguredFlower =
-            FLOWER_TILE_GIDS.size > 0 && FLOWER_TILE_GIDS.has(tileGID);
-
-          const props = tileProperties.get(tileGID);
-          const hasFlowerProperty =
-            props &&
-            props.some(
-              (p) =>
-                (p.name === "isFlower" ||
-                  p.name === "flower" ||
-                  p.name === "type") &&
-                (p.value === true ||
-                  p.value === "flower" ||
-                  p.value === "Flower")
-            );
-
-          const tileHasFlowerProp =
-            tile.properties &&
-            (tile.properties.isFlower === true ||
-              tile.properties.flower === true ||
-              tile.properties.type === "flower");
-
-          const hasExplicitFlowerMarker =
-            isConfiguredFlower || hasFlowerProperty || tileHasFlowerProp;
-
-          let isLikelyFlower = false;
-          if (!hasExplicitFlowerMarker && FLOWER_TILE_GIDS.size === 0) {
-            const isIsolated = this.checkIfIsolatedDecorativeTile(
-              layerData,
-              x,
-              y
-            );
-            isLikelyFlower = tile.index > 0 && !tile.collides && isIsolated;
-          }
-
-          const isFlowerTile = hasExplicitFlowerMarker || isLikelyFlower;
-
-          if (isFlowerTile) {
-            const worldX = x * tileSize + tileSize / 2;
-            const worldY = y * tileSize + tileSize;
-
-            const flower = this.add
-              .image(worldX, worldY, "flower")
-              .setOrigin(0.5, 1)
-              .setDepth(5);
-
-            // Store metadata for flower
-            (
-              flower as Phaser.GameObjects.Image & {
-                tileX?: number;
-                tileY?: number;
-                layerName?: string;
-              }
-            ).tileX = x;
-            (
-              flower as Phaser.GameObjects.Image & {
-                tileX?: number;
-                tileY?: number;
-                layerName?: string;
-              }
-            ).tileY = y;
-            (
-              flower as Phaser.GameObjects.Image & {
-                tileX?: number;
-                tileY?: number;
-                layerName?: string;
-              }
-            ).layerName = layerName;
-
-            this.flowers.push(flower);
-          }
-        }
-      }
-    });
-
-    const objectsLayer = this.gameMap.objects;
-    if (objectsLayer) {
-      objectsLayer.forEach((objGroup) => {
-        if (objGroup.name === "Objects" && objGroup.objects) {
-          objGroup.objects.forEach((obj: Phaser.Types.Tilemaps.TiledObject) => {
-            if (
-              obj.name &&
-              (obj.name.toLowerCase().includes("flower") ||
-                (obj.type && obj.type.toLowerCase().includes("flower")))
-            ) {
-              const flower = this.add
-                .image(obj.x ?? 0, obj.y ?? 0, "flower")
-                .setOrigin(0.5, 1)
-                .setDepth(5);
-              this.flowers.push(flower);
-            }
-          });
-        }
-      });
-    }
-
-    console.log(
-      `Created ${this.flowers.length} interactive flowers from tilemap`
-    );
-  }
-
-  private checkFlowerProximity(): void {
-    let nearFlower = false;
-
-    if (this.flowers.length > 0 && this.player) {
-      this.flowers.forEach((flower) => {
-        const dx = this.player!.x - flower.x;
-        const dy = this.player!.y - flower.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < FLOWER_PROXIMITY_DISTANCE) {
-          nearFlower = true;
-        }
-      });
-    }
-
-    if (this.isNearFlower !== nearFlower) {
-      this.isNearFlower = nearFlower;
-      this.updateChatIconVisibility();
-    }
-  }
-
-  private initFlowerInteraction(): void {
+  private initStatueInteraction(): void {
     const width = this.cameras.main.width;
     const height = this.cameras.main.height;
 
@@ -1287,9 +1131,9 @@ export class GameScene extends Phaser.Scene {
     this.chatIconContainer.add(pressCText);
 
     this.chatWidth = 400;
-    const chatHeight = height - 100;
-    const chatX = 20;
-    const chatY = 50;
+    const chatHeight = height - 200;
+    const chatX = width - this.chatWidth - 20;
+    const chatY = height - chatHeight - 20;
 
     this.chatDialogueContainer = this.add.container(chatX, chatY);
     this.chatDialogueContainer.setScrollFactor(0);
@@ -1318,14 +1162,14 @@ export class GameScene extends Phaser.Scene {
     headerBg.setStrokeStyle(2, 0x666666);
     this.chatDialogueContainer.add(headerBg);
 
-    const flowerIcon = this.add.text(20, 30, "🌸", {
+    const statueIcon = this.add.text(20, 30, "🗿", {
       font: "24px monospace",
       color: "#ffffff",
     });
-    flowerIcon.setOrigin(0, 0.5);
-    this.chatDialogueContainer.add(flowerIcon);
+    statueIcon.setOrigin(0, 0.5);
+    this.chatDialogueContainer.add(statueIcon);
 
-    const headerText = this.add.text(50, 30, "Flower Chat", {
+    const headerText = this.add.text(50, 30, "Statue Chat", {
       font: "bold 16px monospace",
       color: "#ffffff",
     });
@@ -1346,7 +1190,7 @@ export class GameScene extends Phaser.Scene {
     this.chatMessageContainer = this.add.container(this.chatWidth / 2, 100);
     this.chatDialogueContainer.add(this.chatMessageContainer);
 
-    this.addChatMessage("flower", "Hello! I'm a flower 🌸");
+    this.addChatMessage("statue", "Hello! I'm an old statue 🗿");
 
     const inputBg = this.add.rectangle(
       this.chatWidth / 2,
@@ -1406,7 +1250,7 @@ export class GameScene extends Phaser.Scene {
     const cKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     cKey.on("down", () => {
       if (
-        this.isNearFlower &&
+        this.isNearStatue &&
         !this.isChatOpen &&
         !this.isMenuOpen &&
         !this.isDialogVisible
@@ -1443,9 +1287,10 @@ export class GameScene extends Phaser.Scene {
 
   private updateChatIconVisibility(): void {
     if (this.chatIconContainer) {
-      this.chatIconContainer.setVisible(this.isNearFlower && !this.isChatOpen);
+      const shouldShow = this.isNearStatue && !this.isChatOpen;
+      this.chatIconContainer.setVisible(shouldShow);
 
-      if (this.isNearFlower && !this.isChatOpen) {
+      if (shouldShow) {
         this.tweens.add({
           targets: this.chatIconContainer,
           y: this.chatIconContainer.y - 5,
@@ -1519,8 +1364,8 @@ export class GameScene extends Phaser.Scene {
     this.updateChatInput("");
 
     setTimeout(() => {
-      const response = this.getFlowerResponse(message);
-      this.addChatMessage("flower", response);
+      const response = this.getStatueResponse(message);
+      this.addChatMessage("statue", response);
     }, 500);
   }
 
@@ -1569,38 +1414,44 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private getFlowerResponse(playerMessage: string): string {
+  private getStatueResponse(playerMessage: string): string {
     const lowerMessage = playerMessage.toLowerCase();
 
     if (lowerMessage.includes("hello") || lowerMessage.includes("hi")) {
-      return "Hello there! Nice to meet you!";
+      return "Greetings, traveler. I have stood here for many ages.";
     }
     if (lowerMessage.includes("how") && lowerMessage.includes("you")) {
-      return "I'm doing great, thank you for asking! The sun feels wonderful today.";
+      return "I am as I have always been - still and patient. Time means little to stone.";
     }
     if (lowerMessage.includes("name")) {
-      return "I don't have a name, but you can call me Flower! What's your name?";
+      return "I am known as the old statue. My true name has been lost to time.";
     }
     if (lowerMessage.includes("weather")) {
-      return "The weather is perfect for growing! I love sunny days.";
+      return "The weather changes, but I remain constant. Rain, sun, or storm - I endure.";
     }
-    if (lowerMessage.includes("beautiful") || lowerMessage.includes("pretty")) {
-      return "Aww, thank you! That's so kind of you to say!";
+    if (lowerMessage.includes("old") || lowerMessage.includes("ancient")) {
+      return "Yes, I am very old. I have witnessed many seasons pass.";
+    }
+    if (
+      lowerMessage.includes("beautiful") ||
+      lowerMessage.includes("impressive")
+    ) {
+      return "Thank you. Though weathered, I still stand as a testament to those who came before.";
     }
     if (lowerMessage.includes("bye") || lowerMessage.includes("goodbye")) {
-      return "Goodbye! Come visit me again soon!";
+      return "Farewell, traveler. May your journey be safe.";
     }
     if (lowerMessage.includes("help")) {
-      return "I'm just a flower, but I'm here to chat! Ask me anything!";
+      return "I am but a statue, but I can share what I have observed over the ages.";
     }
 
     const defaultResponses = [
-      "That's interesting! Tell me more!",
-      "I love chatting with you!",
-      "The world is so beautiful, don't you think?",
-      "I wish I could move around like you do!",
-      "Have you seen any other flowers nearby?",
-      "I'm happy just being here, growing and blooming!",
+      "Interesting... I have not heard such words in a long time.",
+      "The world has changed much since I was first placed here.",
+      "I have seen many travelers pass by, but few stop to speak.",
+      "Time flows differently for stone than for flesh.",
+      "What stories could I tell, if only I could move...",
+      "I remember when this place was different, long ago.",
     ];
     return defaultResponses[
       Math.floor(Math.random() * defaultResponses.length)
