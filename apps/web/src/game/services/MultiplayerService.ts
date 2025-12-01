@@ -17,6 +17,7 @@ export class MultiplayerService {
   private serverUrl: string;
   private isConnected: boolean = false;
   private socketId: string | null = null;
+  private isPlayerRegistered: boolean = false;
 
   // Callbacks
   private onPlayerJoinCallbacks: PlayerJoinCallback[] = [];
@@ -73,6 +74,7 @@ export class MultiplayerService {
     this.socket.on("disconnect", (reason) => {
       console.log("Disconnected from multiplayer server. Reason:", reason);
       this.isConnected = false;
+      this.isPlayerRegistered = false; // Reset registration status on disconnect
     });
 
     this.socket.on("reconnect_attempt", (attemptNumber) => {
@@ -82,6 +84,7 @@ export class MultiplayerService {
     this.socket.on("reconnect", (attemptNumber) => {
       console.log(`✓ Reconnected after ${attemptNumber} attempts`);
       this.isConnected = true;
+      this.isPlayerRegistered = false; // Need to re-register after reconnect
       if (this.socket) {
         this.socketId = this.socket.id || null;
         console.log("New Socket ID after reconnect:", this.socketId);
@@ -157,14 +160,21 @@ export class MultiplayerService {
   }
 
   public sendMovement(x: number, y: number, direction?: string): void {
-    if (this.socket?.connected) {
+    // Only send movement if connected and player is registered
+    if (this.socket?.connected && this.isPlayerRegistered) {
       this.socket.emit("move", { x, y, direction });
+    } else if (this.socket?.connected && !this.isPlayerRegistered) {
+      console.warn("⚠️ Attempted to send movement before player registration");
     }
   }
 
   public registerNewPlayer(x: number, y: number): void {
     if (this.socket?.connected) {
+      console.log("📤 Registering new player at:", x, y);
+      this.isPlayerRegistered = true;
       this.socket.emit("newplayer", { x, y });
+    } else {
+      console.warn("⚠️ Cannot register player - not connected to server");
     }
   }
 

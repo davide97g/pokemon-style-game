@@ -11,17 +11,46 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
+// Normalize URL - remove trailing slashes and ensure proper format
+const normalizeUrl = (url: string): string => {
+  return url.trim().replace(/\/+$/, ""); // Remove trailing slashes
+};
+
 // Handle CORS origins - support multiple origins separated by comma
 const getCorsOrigins = (): string | string[] => {
   const clientUrl = process.env.CLIENT_URL;
   if (!clientUrl) {
     return "http://localhost:5173";
   }
+
   // Support multiple origins separated by comma
   if (clientUrl.includes(",")) {
-    return clientUrl.split(",").map((url) => url.trim());
+    const origins = clientUrl.split(",").map((url) => normalizeUrl(url));
+    // Also add HTTPS versions if HTTP versions are provided
+    const allOrigins: string[] = [];
+    origins.forEach((origin) => {
+      allOrigins.push(origin);
+      // If HTTP, also allow HTTPS version
+      if (origin.startsWith("http://")) {
+        allOrigins.push(origin.replace("http://", "https://"));
+      }
+      // If HTTPS, also allow HTTP version (for flexibility)
+      if (origin.startsWith("https://")) {
+        allOrigins.push(origin.replace("https://", "http://"));
+      }
+    });
+    return [...new Set(allOrigins)]; // Remove duplicates
   }
-  return clientUrl;
+
+  const normalized = normalizeUrl(clientUrl);
+  // Return both HTTP and HTTPS versions if only one is specified
+  if (normalized.startsWith("http://")) {
+    return [normalized, normalized.replace("http://", "https://")];
+  }
+  if (normalized.startsWith("https://")) {
+    return [normalized, normalized.replace("https://", "http://")];
+  }
+  return normalized;
 };
 
 const corsOrigins = getCorsOrigins();
@@ -48,9 +77,18 @@ app.use(express.json());
 // Log environment configuration on startup
 console.log("=== Server Configuration ===");
 console.log("PORT:", PORT);
-console.log("CLIENT_URL:", process.env.CLIENT_URL || "http://localhost:5173 (default)");
-console.log("CORS Origins:", Array.isArray(corsOrigins) ? corsOrigins.join(", ") : corsOrigins);
-console.log("OPEN_AI_API_KEY:", process.env.OPEN_AI_API_KEY ? "✓ Set" : "✗ Not set");
+console.log(
+  "CLIENT_URL:",
+  process.env.CLIENT_URL || "http://localhost:5173 (default)"
+);
+console.log(
+  "CORS Origins:",
+  Array.isArray(corsOrigins) ? corsOrigins.join(", ") : corsOrigins
+);
+console.log(
+  "OPEN_AI_API_KEY:",
+  process.env.OPEN_AI_API_KEY ? "✓ Set" : "✗ Not set"
+);
 console.log("===========================");
 
 const SYSTEM_PROMPT = `You are an ancient stone statue in a fantasy game world. You have stood in the same place for many ages, observing the world around you. You speak in a wise, patient, and somewhat mysterious manner. You remember conversations with travelers who have visited you.
@@ -136,7 +174,9 @@ const getAllPlayers = (): Player[] => {
 
 // Socket.io connection handling
 io.on("connection", (socket) => {
-  console.log(`Player connected: ${socket.id} from origin: ${socket.handshake.headers.origin}`);
+  console.log(
+    `Player connected: ${socket.id} from origin: ${socket.handshake.headers.origin}`
+  );
 
   socket.on("newplayer", (data?: { x: number; y: number }) => {
     // Use provided position or random spawn
@@ -155,7 +195,10 @@ io.on("connection", (socket) => {
     // Send all existing players to the new player
     socket.emit("allplayers", allPlayers);
 
-    console.log(`📤 Broadcasting 'newplayer' to all clients except ${socket.id}:`, player);
+    console.log(
+      `📤 Broadcasting 'newplayer' to all clients except ${socket.id}:`,
+      player
+    );
     // Broadcast new player to all other clients
     socket.broadcast.emit("newplayer", player);
 
@@ -165,37 +208,57 @@ io.on("connection", (socket) => {
   });
 
   socket.on("move", (data: { x: number; y: number; direction?: string }) => {
-    const player = players.get(socket.id);
-    if (player) {
+    let player = players.get(socket.id);
+
+    // If player doesn't exist yet, create them (handles race condition)
+    if (!player) {
+      console.log(
+        `⚠️ Move event received from unregistered player ${socket.id}, creating player entry`
+      );
+      player = {
+        id: socket.id,
+        x: data.x,
+        y: data.y,
+        direction: data.direction,
+      };
+      players.set(socket.id, player);
+      // Also notify other clients about this new player
+      socket.broadcast.emit("newplayer", player);
+    } else {
       player.x = data.x;
       player.y = data.y;
       if (data.direction) {
         player.direction = data.direction;
       }
-
-      const moveData = {
-        id: socket.id,
-        x: player.x,
-        y: player.y,
-        direction: player.direction,
-      };
-
-      console.log(`📤 Broadcasting 'move' from ${socket.id} to all other clients:`, moveData);
-      // Broadcast movement to all other clients
-      socket.broadcast.emit("move", moveData);
-    } else {
-      console.warn(`⚠️ Move event received from unknown player: ${socket.id}`);
     }
+
+    const moveData = {
+      id: socket.id,
+      x: player.x,
+      y: player.y,
+      direction: player.direction,
+    };
+
+    console.log(
+      `📤 Broadcasting 'move' from ${socket.id} to all other clients:`,
+      moveData
+    );
+    // Broadcast movement to all other clients
+    socket.broadcast.emit("move", moveData);
   });
 
   socket.on("disconnect", () => {
     const player = players.get(socket.id);
     if (player) {
       players.delete(socket.id);
-      console.log(`📤 Broadcasting 'remove' for disconnected player: ${socket.id}`);
+      console.log(
+        `📤 Broadcasting 'remove' for disconnected player: ${socket.id}`
+      );
       // Notify all clients to remove this player
       io.emit("remove", socket.id);
-      console.log(`Player disconnected: ${socket.id}. Remaining players: ${players.size}`);
+      console.log(
+        `Player disconnected: ${socket.id}. Remaining players: ${players.size}`
+      );
     }
   });
 });
@@ -203,5 +266,7 @@ io.on("connection", (socket) => {
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Socket.io server ready for multiplayer connections`);
-  console.log(`WebSocket endpoint: ws://localhost:${PORT} (or wss:// in production)`);
+  console.log(
+    `WebSocket endpoint: ws://localhost:${PORT} (or wss:// in production)`
+  );
 });

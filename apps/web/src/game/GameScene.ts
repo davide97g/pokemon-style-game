@@ -236,17 +236,21 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
+    // Helper function to register player
+    const registerPlayer = () => {
+      if (this.player && this.multiplayerService?.isConnectedToServer()) {
+        const pos = this.player.getPosition();
+        console.log("Registering player at position:", pos.x, pos.y);
+        this.multiplayerService.registerNewPlayer(pos.x, pos.y);
+      }
+    };
+
     // Connect to server
     this.multiplayerService.connect();
 
-    // Register new player with initial position after connection is established
+    // Register new player after connection is established
     // Wait a bit for connection to be fully established
-    this.time.delayedCall(100, () => {
-      if (this.player && this.multiplayerService?.isConnectedToServer()) {
-        const pos = this.player.getPosition();
-        this.multiplayerService.registerNewPlayer(pos.x, pos.y);
-      }
-    });
+    this.time.delayedCall(500, registerPlayer);
   }
 
   private addRemotePlayer(playerData: PlayerData): void {
