@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { GAME_SCALE } from "../config/game";
+import { GAME_SCALE, STATUE_PROXIMITY_DISTANCE } from "../config/game";
 import { CollisionSystem } from "../engine/CollisionSystem";
 import { SpriteRenderer } from "../engine/SpriteRenderer";
 import { TilemapRenderer } from "../engine/TilemapRenderer";
 import { usePlayer } from "../entities/usePlayer";
 import { useGameLoop } from "../hooks/useGameLoop";
 import { useKeyboard } from "../hooks/useKeyboard";
+import { ChatUI } from "./ChatUI";
 import { GameDialog } from "./GameDialog";
 import { GameMenu } from "./GameMenu";
 import MobileControls from "./MobileControls";
@@ -33,6 +34,9 @@ export function GameCanvas() {
     text: "",
     speaker: undefined as string | undefined,
   });
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isNearStatue, setIsNearStatue] = useState(false);
+  const statuePosition = useRef<{ x: number; y: number } | null>(null);
 
   // Input
   const keyboardKeys = useKeyboard();
@@ -158,6 +162,16 @@ export function GameCanvas() {
           setPosition(spawnPoint.x, spawnPoint.y);
         }
 
+        // Find statue by property (type = "intelligent")
+        const statue = tilemapRenderer.current.findObjectByProperty(
+          "Objects",
+          "type",
+          "intelligent",
+        );
+        if (statue) {
+          statuePosition.current = statue;
+        }
+
         setLoading(false);
       } catch (err) {
         console.error("Failed to load assets:", err);
@@ -194,10 +208,48 @@ export function GameCanvas() {
 
   // Handle menu toggle
   useEffect(() => {
-    if (keys.enter && !isMenuOpen) {
+    if (keys.enter && !isMenuOpen && !isChatOpen) {
       setIsMenuOpen(true);
     }
-  }, [keys.enter, isMenuOpen]);
+  }, [keys.enter, isMenuOpen, isChatOpen]);
+
+  // Handle chat toggle with "C" key
+  const lastCKeyState = useRef(false);
+  useEffect(() => {
+    const cKeyPressed = keys.c === true;
+    // Only trigger on key press (transition from false to true)
+    if (
+      cKeyPressed &&
+      !lastCKeyState.current &&
+      isNearStatue &&
+      !isChatOpen &&
+      !isMenuOpen
+    ) {
+      setIsChatOpen(true);
+    }
+    lastCKeyState.current = cKeyPressed;
+  }, [keys.c, isNearStatue, isChatOpen, isMenuOpen]);
+
+  // Check proximity to statue
+  useEffect(() => {
+    if (!statuePosition.current) return;
+
+    const dx = player.x - statuePosition.current.x;
+    const dy = player.y - statuePosition.current.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    setIsNearStatue(distance < STATUE_PROXIMITY_DISTANCE);
+  }, [player.x, player.y]);
+
+  // Track chat/menu state in refs to avoid restarting game loop
+  const isChatOpenRef = useRef(isChatOpen);
+  const isMenuOpenRef = useRef(isMenuOpen);
+  useEffect(() => {
+    isChatOpenRef.current = isChatOpen;
+  }, [isChatOpen]);
+  useEffect(() => {
+    isMenuOpenRef.current = isMenuOpen;
+  }, [isMenuOpen]);
 
   // Game loop
   useGameLoop((deltaTime) => {
@@ -206,8 +258,10 @@ export function GameCanvas() {
     const ctx = canvasRef.current.getContext("2d");
     if (!ctx) return;
 
-    // Update player
-    updatePlayer(deltaTime, keys, collisionSystem.current);
+    // Update player (only if chat and menu are closed)
+    if (!isChatOpenRef.current && !isMenuOpenRef.current) {
+      updatePlayer(deltaTime, keys, collisionSystem.current);
+    }
 
     // Update camera
     updateCamera();
@@ -363,6 +417,15 @@ export function GameCanvas() {
             });
           }}
         />
+        <ChatUI isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+        {isNearStatue && !isChatOpen && (
+          <div className="absolute bottom-20 right-4 pointer-events-auto animate-bounce">
+            <div className="bg-gray-800/90 border-2 border-gray-600 rounded-lg p-3 text-center">
+              <div className="text-white font-mono text-sm mb-1">Press C</div>
+              <div className="text-gray-400 font-mono text-xs">to chat</div>
+            </div>
+          </div>
+        )}
         <MobileControls
           onDirectionChange={handleMobileDirection}
           onActionA={() => {

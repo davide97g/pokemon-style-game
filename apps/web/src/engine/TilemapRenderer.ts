@@ -303,4 +303,27 @@ export class TilemapRenderer {
 
     return obj ? { x: obj.x, y: obj.y } : null;
   }
+
+  findObjectByProperty(
+    layerName: string,
+    propertyName: string,
+    propertyValue: string | number | boolean,
+  ): { x: number; y: number } | null {
+    if (!this.map) return null;
+
+    const layer = this.map.layers.find(
+      (l) => l.name === layerName && l.type === "objectgroup",
+    ) as TiledObjectLayer | undefined;
+
+    if (!layer || layer.type !== "objectgroup") return null;
+
+    const obj = layer.objects.find((o: TiledObject) => {
+      if (!o.properties) return false;
+      return o.properties.some(
+        (prop) => prop.name === propertyName && prop.value === propertyValue,
+      );
+    });
+
+    return obj ? { x: obj.x, y: obj.y } : null;
+  }
 }
