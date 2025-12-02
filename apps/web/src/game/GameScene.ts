@@ -114,6 +114,7 @@ export class GameScene extends Phaser.Scene {
   private isMobile = false;
   private player?: Player;
   private gameMap: Phaser.Tilemaps.Tilemap | null = null;
+  private worldLayer?: Phaser.Tilemaps.TilemapLayer;
 
   // Systems
   private menuSystem?: MenuSystem;
@@ -134,6 +135,11 @@ export class GameScene extends Phaser.Scene {
   private volumeIconContainer?: Phaser.GameObjects.Container;
   private volumeIconGraphics?: Phaser.GameObjects.Graphics;
 
+  // Sound effects
+  private hitSound?: Phaser.Sound.BaseSound;
+  private destroySound?: Phaser.Sound.BaseSound;
+  private introSound?: Phaser.Sound.BaseSound;
+
   // Inventory
   private inventoryContainer?: Phaser.GameObjects.Container;
   private isInventoryOpen = false;
@@ -141,9 +147,23 @@ export class GameScene extends Phaser.Scene {
   private inventoryItems: Map<string, InventoryItem> = new Map();
   private hotbarSlots: InventorySlot[] = [];
   private tooltipContainer?: Phaser.GameObjects.Container;
+  private inventoryRecapContainer?: Phaser.GameObjects.Container;
 
   // Collection notifications
   private collectionNotifications: Phaser.GameObjects.Container[] = [];
+
+  // Tile collection tracking (for collectable items disappearing after N collections)
+  private tileCollectionCounts: Map<string, number> = new Map();
+  private tileProgressBars: Map<string, Phaser.GameObjects.Container> =
+    new Map();
+  private nearbyTiles: Set<string> = new Set(); // Track tiles currently in proximity
+
+  // Collection limits per item type
+  private readonly COLLECTION_LIMITS: Map<string, number> = new Map([
+    ["stone", 10],
+    ["stone_dark", 10],
+    ["wood", 5],
+  ]);
 
   constructor() {
     super({ key: "GameScene" });
@@ -172,6 +192,12 @@ export class GameScene extends Phaser.Scene {
     });
     this.remotePlayers.clear();
 
+    // Clean up progress bars
+    this.tileProgressBars.forEach((progressBar) => {
+      progressBar.destroy();
+    });
+    this.tileProgressBars.clear();
+
     // Stop music
     if (this.mainThemeMusic?.isPlaying) {
       this.mainThemeMusic.stop();
@@ -189,6 +215,9 @@ export class GameScene extends Phaser.Scene {
     this.load.tilemapTiledJSON("map", ASSET_PATHS.map);
     this.load.atlas("atlas", ASSET_PATHS.atlas.image, ASSET_PATHS.atlas.json);
     this.load.audio("mainTheme", ASSET_PATHS.music.mainTheme);
+    this.load.audio("hit", ASSET_PATHS.audio.hit);
+    this.load.audio("destroy", ASSET_PATHS.audio.destroy);
+    this.load.audio("intro", ASSET_PATHS.audio.intro);
 
     // Load item images
     Object.entries(ASSET_PATHS.items).forEach(([key, path]) => {
@@ -216,6 +245,7 @@ export class GameScene extends Phaser.Scene {
 
     map.createLayer("Below Player", tilesets, 0, 0);
     const worldLayer = map.createLayer("World", tilesets, 0, 0);
+    this.worldLayer = worldLayer || undefined;
     const aboveLayer = map.createLayer("Above Player", tilesets, 0, 0);
 
     if (worldLayer) {
@@ -292,6 +322,14 @@ export class GameScene extends Phaser.Scene {
     // Initialize music
     this.initMusic();
 
+    // Initialize sound effects
+    this.hitSound = this.sound.add("hit", { volume: 0.5 });
+    this.destroySound = this.sound.add("destroy", { volume: 0.5 });
+    this.introSound = this.sound.add("intro", { volume: 0.5 });
+
+    // Play intro sound when game loads
+    this.introSound?.play();
+
     // Start music after game loads
     this.startMusic();
 
@@ -315,6 +353,7 @@ export class GameScene extends Phaser.Scene {
     this.setupInputHandling();
     this.initInventory();
     this.createInventoryUI();
+    this.createInventoryRecap();
     this.setupInventoryControls();
     this.setupCollectionControls();
   }
@@ -691,6 +730,9 @@ export class GameScene extends Phaser.Scene {
       this.chatSystem?.updatePlayerPosition(this.player.getPosition());
       this.chatSystem?.checkStatueProximity();
     }
+
+    // Update progress bars visibility based on proximity
+    this.updateProgressBarsVisibility();
   }
 
   private initMusic(): void {
@@ -1036,9 +1078,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private initInventory(): void {
-    // Initialize inventory items map
+    // Initialize inventory items map with empty quantities
     ITEM_TYPES.forEach((item) => {
-      this.inventoryItems.set(item.id, { ...item, quantity: 4 });
+      this.inventoryItems.set(item.id, { ...item, quantity: 0 });
     });
   }
 
@@ -1152,6 +1194,119 @@ export class GameScene extends Phaser.Scene {
     this.inventoryContainer = container;
     this.createTooltip();
     this.updateInventoryDisplay();
+  }
+
+  private createInventoryRecap(): void {
+    const padding = 16;
+    const itemWidth = 200;
+
+    const container = this.add.container(padding + itemWidth / 2, 0);
+    container.setScrollFactor(0);
+    container.setDepth(100);
+    this.inventoryRecapContainer = container;
+
+    this.updateInventoryRecap();
+  }
+
+  private updateInventoryRecap(): void {
+    if (!this.inventoryRecapContainer) return;
+
+    // Clear existing children
+    this.inventoryRecapContainer.removeAll(true);
+
+    // Get all items with quantity > 0
+    const itemsWithQuantity: InventoryItem[] = [];
+    this.inventoryItems.forEach((item) => {
+      if (item.quantity > 0) {
+        itemsWithQuantity.push({ ...item });
+      }
+    });
+
+    if (itemsWithQuantity.length === 0) {
+      return;
+    }
+
+    const itemHeight = 48;
+    const itemWidth = 200;
+    const itemSpacing = 4;
+    const iconSize = 32;
+    const padding = 8;
+    const bottomPadding = 16;
+
+    // Calculate container Y position so items align from bottom of camera
+    const totalHeight =
+      itemsWithQuantity.length * itemHeight +
+      (itemsWithQuantity.length - 1) * itemSpacing;
+    const containerY =
+      this.cameras.main.height - bottomPadding - totalHeight / 2;
+    this.inventoryRecapContainer.setY(containerY);
+
+    // Calculate starting Y position (bottom-up, relative to container center)
+    let currentY = -totalHeight / 2 + itemHeight / 2;
+
+    itemsWithQuantity.forEach((item) => {
+      // Background (black with rounded corners)
+      const radius = 8;
+      const graphics = this.add.graphics();
+      graphics.fillStyle(0x000000, 0.5);
+      graphics.lineStyle(2, 0xffffff, 0.3);
+
+      // Draw rounded rectangle
+      graphics.fillRoundedRect(
+        -itemWidth / 2,
+        currentY - itemHeight / 2,
+        itemWidth,
+        itemHeight,
+        radius,
+      );
+      graphics.strokeRoundedRect(
+        -itemWidth / 2,
+        currentY - itemHeight / 2,
+        itemWidth,
+        itemHeight,
+        radius,
+      );
+
+      this.inventoryRecapContainer?.add(graphics);
+
+      // Item icon
+      const iconX = -itemWidth / 2 + padding + iconSize / 2;
+      if (this.textures.exists(item.id)) {
+        const itemIcon = this.add.image(iconX, currentY, item.id);
+        itemIcon.setDisplaySize(iconSize, iconSize);
+        this.inventoryRecapContainer?.add(itemIcon);
+      } else {
+        const itemIcon = this.add.rectangle(
+          iconX,
+          currentY,
+          iconSize,
+          iconSize,
+          item.color,
+          1,
+        );
+        itemIcon.setStrokeStyle(2, 0xffffff, 0.3);
+        this.inventoryRecapContainer?.add(itemIcon);
+      }
+
+      // Quantity and name text (icon x quantity name)
+      const textX = iconX + iconSize / 2 + padding;
+      const quantityText = this.add.text(
+        textX,
+        currentY,
+        `x${item.quantity} ${item.name}`,
+        {
+          fontFamily: "monospace",
+          fontSize: "16px",
+          color: "#ffffff",
+          stroke: "#000000",
+          strokeThickness: 2,
+        },
+      );
+      quantityText.setOrigin(0, 0.5);
+      this.inventoryRecapContainer?.add(quantityText);
+
+      currentY += itemHeight + itemSpacing;
+    });
   }
 
   private createTooltip(): void {
@@ -1400,6 +1555,9 @@ export class GameScene extends Phaser.Scene {
         this.hideTooltip();
       });
     });
+
+    // Update inventory recap
+    this.updateInventoryRecap();
   }
 
   private addItemToInventory(itemId: string, quantity: number = 1): void {
@@ -1410,7 +1568,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private checkTileProximity(): string | null {
+  private checkTileProximity(): {
+    itemId: string;
+    tileX: number;
+    tileY: number;
+  } | null {
     if (!this.player || !this.gameMap) return null;
 
     const playerPos = this.player.getPosition();
@@ -1440,6 +1602,46 @@ export class GameScene extends Phaser.Scene {
           if (worldLayer?.tilemapLayer) {
             const tile = worldLayer.tilemapLayer.getTileAt(checkX, checkY);
             if (tile && tile.index !== null && tile.index !== -1) {
+              // Check if tile is already hidden (collected max times)
+              const tileKey = `${checkX},${checkY}`;
+              const collectionCount =
+                this.tileCollectionCounts.get(tileKey) || 0;
+
+              // Get collectable item type to check limit
+              let itemId: string | null = null;
+              if (tile.properties) {
+                if (Array.isArray(tile.properties)) {
+                  const collectableProperty = tile.properties.find(
+                    (prop: { name: string; value: unknown }) =>
+                      prop.name === "collectable",
+                  );
+                  if (
+                    collectableProperty &&
+                    typeof collectableProperty.value === "string"
+                  ) {
+                    itemId = collectableProperty.value;
+                  }
+                } else if (
+                  typeof tile.properties === "object" &&
+                  "collectable" in tile.properties
+                ) {
+                  const collectableValue = (
+                    tile.properties as { collectable: unknown }
+                  ).collectable;
+                  if (typeof collectableValue === "string") {
+                    itemId = collectableValue;
+                  }
+                }
+              }
+
+              // Check if tile has reached its collection limit
+              if (itemId) {
+                const limit = this.COLLECTION_LIMITS.get(itemId) || Infinity;
+                if (collectionCount >= limit) {
+                  continue; // Skip hidden tiles
+                }
+              }
+
               // Check for collectable property
               // In Phaser, tile properties from Tiled (including tileset-level properties)
               // are available on the tile object via tile.properties
@@ -1454,7 +1656,11 @@ export class GameScene extends Phaser.Scene {
                     collectableProperty &&
                     typeof collectableProperty.value === "string"
                   ) {
-                    return collectableProperty.value;
+                    return {
+                      itemId: collectableProperty.value,
+                      tileX: checkX,
+                      tileY: checkY,
+                    };
                   }
                 }
                 // Handle properties as object (Phaser might convert it)
@@ -1466,7 +1672,11 @@ export class GameScene extends Phaser.Scene {
                     tile.properties as { collectable: unknown }
                   ).collectable;
                   if (typeof collectableValue === "string") {
-                    return collectableValue;
+                    return {
+                      itemId: collectableValue,
+                      tileX: checkX,
+                      tileY: checkY,
+                    };
                   }
                 }
               }
@@ -1494,18 +1704,261 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      const collectableItem = this.checkTileProximity();
-      if (collectableItem) {
+      const collectableData = this.checkTileProximity();
+      if (collectableData) {
+        const { itemId, tileX, tileY } = collectableData;
+
         // Check if the item type exists in inventory
-        if (this.inventoryItems.has(collectableItem)) {
-          this.addItemToInventory(collectableItem, 1);
-          this.showCollectionNotification(collectableItem, 1);
-          debugLog(`Collected 1x ${collectableItem}`);
+        if (this.inventoryItems.has(itemId)) {
+          const tileKey = `${tileX},${tileY}`;
+          const currentCount = this.tileCollectionCounts.get(tileKey) || 0;
+          const newCount = currentCount + 1;
+
+          // Update collection count
+          this.tileCollectionCounts.set(tileKey, newCount);
+
+          // Get collection limit for this item type
+          const limit = this.COLLECTION_LIMITS.get(itemId) || Infinity;
+
+          // Update progress bar if item has a limit
+          if (limit !== Infinity) {
+            this.updateProgressBar(tileX, tileY, itemId, newCount, limit);
+          }
+
+          // If reached limit, hide the tile and remove progress bar
+          if (newCount >= limit) {
+            this.hideTile(tileX, tileY);
+            this.removeProgressBar(tileKey);
+            this.nearbyTiles.delete(tileKey);
+            debugLog(
+              `${itemId} at (${tileX}, ${tileY}) disappeared after ${limit} collections`,
+            );
+          }
+
+          this.addItemToInventory(itemId, 1);
+          this.showCollectionNotification(itemId, 1);
+          this.hitSound?.play();
+          debugLog(`Collected 1x ${itemId}`);
         } else {
-          debugWarn(`Unknown collectable item type: ${collectableItem}`);
+          debugWarn(`Unknown collectable item type: ${itemId}`);
         }
       }
     });
+  }
+
+  private hideTile(tileX: number, tileY: number): void {
+    if (!this.worldLayer) return;
+
+    // Get the tile and hide it by setting alpha to 0
+    const tile = this.worldLayer.getTileAt(tileX, tileY);
+    if (tile) {
+      tile.setAlpha(0);
+      // Also remove collision if it exists
+      tile.setCollision(false);
+      // Play destroy sound when item is removed from screen
+      this.destroySound?.play();
+    }
+  }
+
+  private updateProgressBar(
+    tileX: number,
+    tileY: number,
+    _itemId: string,
+    collectionCount: number,
+    limit: number,
+  ): void {
+    if (!this.gameMap) return;
+
+    const tileKey = `${tileX},${tileY}`;
+    const tileWidth = this.gameMap.tileWidth || 32;
+    const tileHeight = this.gameMap.tileHeight || 32;
+
+    // Calculate world position (center of tile)
+    const worldX = tileX * tileWidth + tileWidth / 2;
+    const worldY = tileY * tileHeight + tileHeight / 2;
+
+    // Calculate remaining percentage
+    const remainingPercentage = ((limit - collectionCount) / limit) * 100;
+
+    // Check if progress bar already exists
+    let progressBarContainer = this.tileProgressBars.get(tileKey);
+
+    if (!progressBarContainer) {
+      // Create new progress bar container
+      progressBarContainer = this.add.container(
+        worldX,
+        worldY - tileHeight / 2 - 8,
+      );
+      progressBarContainer.setDepth(20); // Above tiles but below player
+      progressBarContainer.setVisible(false); // Hidden by default, shown when in proximity
+      this.tileProgressBars.set(tileKey, progressBarContainer);
+
+      // Progress bar dimensions
+      const barWidth = tileWidth * 0.8;
+      const barHeight = 4;
+      const padding = 2;
+
+      // Background (black)
+      const background = this.add.rectangle(
+        0,
+        0,
+        barWidth + padding * 2,
+        barHeight + padding * 2,
+        0x000000,
+        0.9,
+      );
+      background.setStrokeStyle(1, 0x333333, 1);
+      progressBarContainer.add(background);
+
+      // Foreground (red) - will be updated
+      const foreground = this.add.rectangle(
+        -barWidth / 2 + padding,
+        0,
+        barWidth - padding * 2,
+        barHeight,
+        0xff0000,
+        1,
+      );
+      foreground.setOrigin(0, 0.5);
+      progressBarContainer.add(foreground);
+
+      // Store reference to foreground for updates
+      (
+        progressBarContainer as Phaser.GameObjects.Container & {
+          foregroundBar?: Phaser.GameObjects.Rectangle;
+        }
+      ).foregroundBar = foreground;
+    }
+
+    // Update progress bar width based on remaining percentage
+    const foregroundBar = (
+      progressBarContainer as Phaser.GameObjects.Container & {
+        foregroundBar?: Phaser.GameObjects.Rectangle;
+      }
+    ).foregroundBar;
+
+    if (foregroundBar) {
+      const barWidth = (this.gameMap.tileWidth || 32) * 0.8;
+      const padding = 2;
+      const maxWidth = barWidth - padding * 2;
+      const currentWidth = (remainingPercentage / 100) * maxWidth;
+
+      foregroundBar.setSize(Math.max(0, currentWidth), 4);
+    }
+  }
+
+  private updateProgressBarsVisibility(): void {
+    if (!this.player || !this.gameMap) return;
+
+    const playerPos = this.player.getPosition();
+    const tileWidth = this.gameMap.tileWidth || 32;
+    const tileHeight = this.gameMap.tileHeight || 32;
+    const tileX = Math.floor(playerPos.x / tileWidth);
+    const tileY = Math.floor(playerPos.y / tileHeight);
+
+    // Track which tiles are currently in proximity
+    const currentNearbyTiles = new Set<string>();
+
+    // Check tiles in a 3x3 area around the player
+    for (let dy = -1; dy <= 1; dy += 1) {
+      for (let dx = -1; dx <= 1; dx += 1) {
+        const checkX = tileX + dx;
+        const checkY = tileY + dy;
+
+        const worldX = checkX * tileWidth + tileWidth / 2;
+        const worldY = checkY * tileHeight + tileHeight / 2;
+
+        const distance = Math.sqrt(
+          (playerPos.x - worldX) ** 2 + (playerPos.y - worldY) ** 2,
+        );
+
+        if (distance <= COLLECTION_PROXIMITY_DISTANCE) {
+          const tileKey = `${checkX},${checkY}`;
+          const collectionCount = this.tileCollectionCounts.get(tileKey) || 0;
+
+          // Check if this tile is collectable and not exhausted
+          const worldLayer = this.gameMap.getLayer("World");
+          if (worldLayer?.tilemapLayer) {
+            const tile = worldLayer.tilemapLayer.getTileAt(checkX, checkY);
+            if (tile && tile.index !== null && tile.index !== -1) {
+              // Get item type
+              let itemId: string | null = null;
+              if (tile.properties) {
+                if (Array.isArray(tile.properties)) {
+                  const collectableProperty = tile.properties.find(
+                    (prop: { name: string; value: unknown }) =>
+                      prop.name === "collectable",
+                  );
+                  if (
+                    collectableProperty &&
+                    typeof collectableProperty.value === "string"
+                  ) {
+                    itemId = collectableProperty.value;
+                  }
+                } else if (
+                  typeof tile.properties === "object" &&
+                  "collectable" in tile.properties
+                ) {
+                  const collectableValue = (
+                    tile.properties as { collectable: unknown }
+                  ).collectable;
+                  if (typeof collectableValue === "string") {
+                    itemId = collectableValue;
+                  }
+                }
+              }
+
+              // Check if item has a collection limit and hasn't reached it
+              if (itemId) {
+                const limit = this.COLLECTION_LIMITS.get(itemId) || Infinity;
+                // Only show progress bar if item has a limit, hasn't reached it, and tile is visible
+                if (
+                  limit !== Infinity &&
+                  collectionCount < limit &&
+                  tile.alpha > 0
+                ) {
+                  currentNearbyTiles.add(tileKey);
+
+                  // Create progress bar if it doesn't exist
+                  if (!this.tileProgressBars.has(tileKey)) {
+                    this.updateProgressBar(
+                      checkX,
+                      checkY,
+                      itemId,
+                      collectionCount,
+                      limit,
+                    );
+                  }
+
+                  // Show progress bar
+                  const progressBar = this.tileProgressBars.get(tileKey);
+                  if (progressBar) {
+                    progressBar.setVisible(true);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Hide progress bars that are no longer in proximity
+    this.tileProgressBars.forEach((progressBar, tileKey) => {
+      if (!currentNearbyTiles.has(tileKey)) {
+        progressBar.setVisible(false);
+      }
+    });
+
+    this.nearbyTiles = currentNearbyTiles;
+  }
+
+  private removeProgressBar(tileKey: string): void {
+    const progressBar = this.tileProgressBars.get(tileKey);
+    if (progressBar) {
+      progressBar.destroy();
+      this.tileProgressBars.delete(tileKey);
+    }
   }
 
   private setupInventoryControls(): void {
@@ -1522,17 +1975,6 @@ export class GameScene extends Phaser.Scene {
         return;
       }
       this.toggleInventory();
-    });
-
-    // Debug key to populate inventory
-    const debugInventoryKey = this.input.keyboard?.addKey(
-      Phaser.Input.Keyboard.KeyCodes.P,
-    );
-    debugInventoryKey?.on("down", () => {
-      this.inventoryItems.forEach((item) => {
-        this.addItemToInventory(item.id, 5);
-      });
-      debugLog("Added 5 of each item to inventory");
     });
   }
 
@@ -1569,31 +2011,39 @@ export class GameScene extends Phaser.Scene {
     notificationContainer.setScrollFactor(0);
     notificationContainer.setDepth(200);
 
-    // Shadow background (darker, offset)
+    // Shadow background (darker, offset) with rounded corners
     const shadowOffset = 3;
-    const shadowBackground = this.add.rectangle(
-      shadowOffset,
-      shadowOffset,
+    const radius = 8;
+    const shadowGraphics = this.add.graphics();
+    shadowGraphics.fillStyle(0x000000, 0.6);
+    shadowGraphics.fillRoundedRect(
+      shadowOffset - notificationWidth / 2,
+      shadowOffset - notificationHeight / 2,
       notificationWidth,
       notificationHeight,
-      0x000000,
-      0.6,
+      radius,
     );
-    shadowBackground.setOrigin(0.5);
-    notificationContainer.add(shadowBackground);
+    notificationContainer.add(shadowGraphics);
 
-    // Main background
-    const background = this.add.rectangle(
-      0,
-      0,
+    // Main background with rounded corners
+    const backgroundGraphics = this.add.graphics();
+    backgroundGraphics.fillStyle(0x000000, 0.5);
+    backgroundGraphics.lineStyle(2, 0xffffff, 0.3);
+    backgroundGraphics.fillRoundedRect(
+      -notificationWidth / 2,
+      -notificationHeight / 2,
       notificationWidth,
       notificationHeight,
-      0x18181b,
-      0.95,
+      radius,
     );
-    background.setStrokeStyle(2, 0xffffff, 0.5);
-    background.setOrigin(0.5);
-    notificationContainer.add(background);
+    backgroundGraphics.strokeRoundedRect(
+      -notificationWidth / 2,
+      -notificationHeight / 2,
+      notificationWidth,
+      notificationHeight,
+      radius,
+    );
+    notificationContainer.add(backgroundGraphics);
 
     // Item image
     const itemImageX = -notificationWidth / 2 + itemImageSize / 2 + 12;

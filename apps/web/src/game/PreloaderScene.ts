@@ -4,7 +4,10 @@ interface PreloaderUI {
   progressBar?: Phaser.GameObjects.Graphics;
   progressBox?: Phaser.GameObjects.Graphics;
   loadingText?: Phaser.GameObjects.Text;
+  loadingDots?: Phaser.GameObjects.Text;
   percentText?: Phaser.GameObjects.Text;
+  inspiringText?: Phaser.GameObjects.Text;
+  particles?: Phaser.GameObjects.Particles.ParticleEmitter;
 }
 
 interface PreloaderConfig {
@@ -16,6 +19,7 @@ interface PreloaderConfig {
   patternColor: number;
   barColor: number;
   barHighlightColor: number;
+  dotAnimationInterval: number;
 }
 
 const PRELOADER_CONFIG: PreloaderConfig = {
@@ -27,7 +31,16 @@ const PRELOADER_CONFIG: PreloaderConfig = {
   patternColor: 0x16213e,
   barColor: 0x4ecdc4,
   barHighlightColor: 0x6ee5d8,
+  dotAnimationInterval: 500,
 };
+
+const INSPIRING_QUOTES = [
+  "Every adventure begins with a single step",
+  "Your world is waiting to be explored",
+  "Building something amazing, one pixel at a time",
+  "Great things take time to load",
+  "Adventure awaits beyond the loading screen",
+];
 
 export class PreloaderScene extends Phaser.Scene {
   private ui: PreloaderUI = {};
@@ -41,7 +54,10 @@ export class PreloaderScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(PRELOADER_CONFIG.backgroundColor);
     this.createPixelPattern(width, height);
+    this.createFloatingParticles(width, height);
     this.createProgressUI(width, height);
+    this.createInspiringText(width, height);
+    this.startAnimatedDots();
     this.startFakeLoading();
   }
 
@@ -79,7 +95,7 @@ export class PreloaderScene extends Phaser.Scene {
     this.ui.loadingText = this.add.text(
       width / 2,
       barY - 60,
-      "Loading your mini world...",
+      "Loading your mini world",
       {
         fontSize: "32px",
         fontFamily: "monospace",
@@ -89,6 +105,31 @@ export class PreloaderScene extends Phaser.Scene {
       },
     );
     this.ui.loadingText.setOrigin(0.5, 0.5);
+
+    // Add pulsing effect to loading text
+    this.tweens.add({
+      targets: this.ui.loadingText,
+      alpha: { from: 0.7, to: 1 },
+      duration: 1500,
+      ease: "Sine.easeInOut",
+      yoyo: true,
+      repeat: -1,
+    });
+
+    // Create animated dots text (will be updated by animation)
+    this.ui.loadingDots = this.add.text(
+      width / 2 + this.ui.loadingText.width / 2 + 10,
+      barY - 60,
+      ".",
+      {
+        fontSize: "32px",
+        fontFamily: "monospace",
+        color: "#4ecdc4",
+        stroke: "#000000",
+        strokeThickness: 4,
+      },
+    );
+    this.ui.loadingDots.setOrigin(0, 0.5);
 
     // Create percent text
     this.ui.percentText = this.add.text(
@@ -181,5 +222,76 @@ export class PreloaderScene extends Phaser.Scene {
         Math.max(2, (barHeight - 4) / 4),
       );
     }
+  }
+
+  private startAnimatedDots(): void {
+    let dotCount = 0;
+
+    const animateDots = () => {
+      dotCount = (dotCount % 3) + 1;
+      const dots = ".".repeat(dotCount);
+      this.ui.loadingDots?.setText(dots);
+      this.time.delayedCall(PRELOADER_CONFIG.dotAnimationInterval, animateDots);
+    };
+
+    this.time.delayedCall(PRELOADER_CONFIG.dotAnimationInterval, animateDots);
+  }
+
+  private createFloatingParticles(width: number, height: number): void {
+    // Create particle texture first
+    const particleGraphics = this.add.graphics();
+    particleGraphics.fillStyle(0x4ecdc4, 1);
+    particleGraphics.fillCircle(2, 2, 2);
+    particleGraphics.generateTexture("particle", 4, 4);
+    particleGraphics.destroy();
+
+    // Create particle emitter for floating stars/particles
+    this.ui.particles = this.add.particles(0, 0, "particle", {
+      x: { min: 0, max: width },
+      y: { min: height, max: height + 50 },
+      speed: { min: 20, max: 50 },
+      scale: { start: 0.4, end: 0 },
+      lifespan: 4000,
+      frequency: 300,
+      tint: [0x4ecdc4, 0x6ee5d8, 0xffffff],
+      alpha: { start: 0.7, end: 0 },
+      gravityY: -30,
+      angle: { min: 80, max: 100 },
+    });
+  }
+
+  private createInspiringText(width: number, height: number): void {
+    const quoteIndex = Math.floor(Math.random() * INSPIRING_QUOTES.length);
+    const quote = INSPIRING_QUOTES[quoteIndex];
+
+    this.ui.inspiringText = this.add.text(width / 2, height - 80, quote, {
+      fontSize: "18px",
+      fontFamily: "monospace",
+      color: "#6ee5d8",
+      stroke: "#000000",
+      strokeThickness: 2,
+      align: "center",
+      wordWrap: { width: width - 100 },
+    });
+    this.ui.inspiringText.setOrigin(0.5, 0.5);
+
+    // Fade in effect
+    this.ui.inspiringText.setAlpha(0);
+    this.tweens.add({
+      targets: this.ui.inspiringText,
+      alpha: { from: 0, to: 0.8 },
+      duration: 1000,
+      ease: "Power2",
+    });
+
+    // Subtle floating animation
+    this.tweens.add({
+      targets: this.ui.inspiringText,
+      y: this.ui.inspiringText.y - 5,
+      duration: 2000,
+      ease: "Sine.easeInOut",
+      yoyo: true,
+      repeat: -1,
+    });
   }
 }

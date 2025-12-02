@@ -9,6 +9,11 @@ export const ASSET_PATHS = {
   music: {
     mainTheme: "/songs/main-theme.mp3",
   },
+  audio: {
+    hit: "/audio/hit.mp3",
+    destroy: "/audio/destroy.mp3",
+    intro: "/audio/intro.mp3",
+  },
   items: {
     mushroom_blue: "/assets/items/mushroom_blue.png",
     stone: "/assets/items/stone.png",
