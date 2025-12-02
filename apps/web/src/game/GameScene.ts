@@ -142,6 +142,17 @@ export class GameScene extends Phaser.Scene {
   private hotbarSlots: InventorySlot[] = [];
   private tooltipContainer?: Phaser.GameObjects.Container;
 
+  // Magic sign interaction
+  private magicTiles: Array<{
+    x: number;
+    y: number;
+    worldX: number;
+    worldY: number;
+  }> = [];
+  private magicSignTooltip?: Phaser.GameObjects.Container;
+  private isNearMagicSign = false;
+  private currentMagicSignPosition?: { x: number; y: number };
+
   constructor() {
     super({ key: "GameScene" });
   }
@@ -311,6 +322,9 @@ export class GameScene extends Phaser.Scene {
     this.createInventoryUI();
     this.setupInventoryControls();
     this.setupCollectionControls();
+    this.initMagicSigns();
+    this.createMagicSignTooltip();
+    this.setupMagicSignControls();
   }
 
   private setupMobileControls(): void {
@@ -351,6 +365,8 @@ export class GameScene extends Phaser.Scene {
     if (this.chatSystem?.isOpen()) return;
     if (this.dialogSystem?.isVisible()) {
       this.dialogSystem.handleAdvance();
+    } else if (this.isNearMagicSign) {
+      this.openMagicSignDialog();
     } else if (
       this.chatSystem?.getIsNearStatue() &&
       !this.chatSystem.isOpen()
@@ -685,6 +701,9 @@ export class GameScene extends Phaser.Scene {
       this.chatSystem?.updatePlayerPosition(this.player.getPosition());
       this.chatSystem?.checkStatueProximity();
     }
+
+    // Check magic sign proximity
+    this.checkMagicSignProximity();
   }
 
   private initMusic(): void {
@@ -1512,5 +1531,204 @@ export class GameScene extends Phaser.Scene {
 
     this.isInventoryOpen = !this.isInventoryOpen;
     this.inventoryContainer.setVisible(this.isInventoryOpen);
+  }
+
+  private initMagicSigns(): void {
+    if (!this.gameMap) return;
+
+    const tileWidth = this.gameMap.tileWidth || 32;
+    const tileHeight = this.gameMap.tileHeight || 32;
+    const firstGID = this.gameMap.tilesets[0]?.firstgid || 1;
+
+    // Check all layers for magic tiles
+    const layersToCheck = ["Below Player", "World", "Above Player"];
+    layersToCheck.forEach((layerName) => {
+      const layer = this.gameMap?.getLayer(layerName);
+      if (!layer?.tilemapLayer) return;
+
+      const layerData = layer.tilemapLayer.layer;
+      if (!layerData) return;
+
+      // Iterate through all tiles in the layer
+      for (let y = 0; y < layerData.height; y += 1) {
+        for (let x = 0; x < layerData.width; x += 1) {
+          const tile = layer.tilemapLayer.getTileAt(x, y);
+          if (!tile || tile.index === null || tile.index === -1) continue;
+
+          const tileGID = tile.index + firstGID;
+
+          // Check if this is tile 354
+          if (tileGID === 354) {
+            // Check if tile has magic property
+            const hasMagicProperty = tile.properties?.some(
+              (prop: { name: string; value: boolean }) =>
+                prop.name === "magic" && prop.value === true,
+            );
+
+            if (hasMagicProperty) {
+              const worldX = x * tileWidth + tileWidth / 2;
+              const worldY = y * tileHeight + tileHeight / 2;
+              this.magicTiles.push({ x, y, worldX, worldY });
+              debugLog(
+                `Found magic sign at tile (${x}, ${y}), world (${worldX}, ${worldY})`,
+              );
+            }
+          }
+        }
+      }
+    });
+  }
+
+  private createMagicSignTooltip(): void {
+    this.magicSignTooltip = this.add.container(0, 0);
+    this.magicSignTooltip.setScrollFactor(0);
+    this.magicSignTooltip.setDepth(200);
+    this.magicSignTooltip.setVisible(false);
+
+    // Background circle
+    const bg = this.add.circle(0, 0, 16, 0x000000, 0.8);
+    bg.setStrokeStyle(2, 0xffffff, 1);
+    this.magicSignTooltip.add(bg);
+
+    // Question mark text
+    const questionMark = this.add.text(0, 0, "?", {
+      fontFamily: "monospace",
+      fontSize: "20px",
+      color: "#ffffff",
+      stroke: "#000000",
+      strokeThickness: 2,
+      align: "center",
+    });
+    questionMark.setOrigin(0.5, 0.5);
+    this.magicSignTooltip.add(questionMark);
+  }
+
+  private checkMagicSignProximity(): void {
+    if (!this.player || this.magicTiles.length === 0) {
+      if (this.isNearMagicSign) {
+        this.isNearMagicSign = false;
+        if (this.magicSignTooltip) {
+          this.magicSignTooltip.setVisible(false);
+        }
+      }
+      return;
+    }
+
+    const playerPos = this.player.getPosition();
+    const playerDirection = this.player.getDirection();
+    const tileWidth = this.gameMap?.tileWidth || 32;
+    const tileHeight = this.gameMap?.tileHeight || 32;
+    const PROXIMITY_DISTANCE = 40; // pixels
+
+    let nearestSign: {
+      x: number;
+      y: number;
+      worldX: number;
+      worldY: number;
+    } | null = null;
+    let minDistance = Infinity;
+
+    // Find nearest magic sign
+    for (const sign of this.magicTiles) {
+      const distance = Math.sqrt(
+        (playerPos.x - sign.worldX) ** 2 + (playerPos.y - sign.worldY) ** 2,
+      );
+
+      if (distance < minDistance && distance <= PROXIMITY_DISTANCE) {
+        // Check if player is facing the sign
+        const dx = sign.worldX - playerPos.x;
+        const dy = sign.worldY - playerPos.y;
+
+        let isFacing = false;
+        if (playerDirection === "up" && dy < 0 && Math.abs(dx) < Math.abs(dy)) {
+          isFacing = true;
+        } else if (
+          playerDirection === "down" &&
+          dy > 0 &&
+          Math.abs(dx) < Math.abs(dy)
+        ) {
+          isFacing = true;
+        } else if (
+          playerDirection === "left" &&
+          dx < 0 &&
+          Math.abs(dy) < Math.abs(dx)
+        ) {
+          isFacing = true;
+        } else if (
+          playerDirection === "right" &&
+          dx > 0 &&
+          Math.abs(dy) < Math.abs(dx)
+        ) {
+          isFacing = true;
+        }
+
+        if (isFacing) {
+          minDistance = distance;
+          nearestSign = sign;
+        }
+      }
+    }
+
+    // Update tooltip visibility
+    if (nearestSign) {
+      this.isNearMagicSign = true;
+      this.currentMagicSignPosition = {
+        x: nearestSign.worldX,
+        y: nearestSign.worldY,
+      };
+
+      if (this.magicSignTooltip) {
+        // Convert world position to screen position
+        const camera = this.cameras.main;
+        const screenX = nearestSign.worldX - camera.scrollX;
+        const screenY = nearestSign.worldY - camera.scrollY - 40; // Position above the sign
+
+        this.magicSignTooltip.setPosition(screenX, screenY);
+        this.magicSignTooltip.setVisible(true);
+      }
+    } else {
+      this.isNearMagicSign = false;
+      this.currentMagicSignPosition = undefined;
+      if (this.magicSignTooltip) {
+        this.magicSignTooltip.setVisible(false);
+      }
+    }
+  }
+
+  private setupMagicSignControls(): void {
+    const cKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+
+    cKey?.on("down", () => {
+      if (
+        this.chatSystem?.isOpen() ||
+        this.menuSystem?.isOpen() ||
+        this.dialogSystem?.isVisible() ||
+        this.isInventoryOpen
+      ) {
+        return;
+      }
+
+      if (this.isNearMagicSign) {
+        this.openMagicSignDialog();
+      }
+    });
+  }
+
+  private openMagicSignDialog(): void {
+    const randomTexts = [
+      "Il segno brilla con una luce misteriosa...",
+      "Senti una voce sussurrare: 'Il destino ti attende'",
+      "Qualcosa di magico sta per accadere...",
+      "Il segno antico parla: 'Cerca oltre l'orizzonte'",
+      "Una forza invisibile ti avvolge...",
+      "Il segno rivela: 'Il potere è dentro di te'",
+      "Senti un'energia magica fluire attraverso di te...",
+      "Il segno sussurra: 'Il viaggio è appena iniziato'",
+    ];
+
+    const randomText =
+      randomTexts[Phaser.Math.Between(0, randomTexts.length - 1)];
+
+    this.dialogSystem?.showDialog(randomText, "Segno Magico");
   }
 }
