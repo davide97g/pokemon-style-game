@@ -6,12 +6,19 @@
 
 import Phaser from "phaser";
 import { ASSET_PATHS } from "./config/AssetPaths";
+import { OSM_CONFIG } from "./config/OSMConfig";
+import { PLANETILER_CONFIG } from "./config/PlanetilerConfig";
 import { Player } from "./entities/Player";
 import { RemotePlayer } from "./entities/RemotePlayer";
 import {
   MultiplayerService,
   type PlayerData,
 } from "./services/MultiplayerService";
+import {
+  generateTilemapFromOSM,
+  loadTilemapFromCache,
+  saveTilemapToCache,
+} from "./services/TilemapGenerator";
 import { ChatSystem } from "./systems/ChatSystem";
 import { DialogSystem } from "./systems/DialogSystem";
 import { MenuSystem } from "./systems/MenuSystem";
@@ -81,6 +88,10 @@ export class GameScene extends Phaser.Scene {
   private volumeIconContainer?: Phaser.GameObjects.Container;
   private volumeIconGraphics?: Phaser.GameObjects.Graphics;
 
+  // OSM Map
+  private mapType: "static" | "osm" = "static";
+  private loadingIndicator?: Phaser.GameObjects.Container;
+
   constructor() {
     super({ key: "GameScene" });
   }
@@ -128,6 +139,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Check if user wants OSM map
+    const savedMapType = localStorage.getItem("mapType") as
+      | "static"
+      | "osm"
+      | null;
+    if (savedMapType === "osm") {
+      this.mapType = "osm";
+      this.loadOSMMap();
+      return;
+    }
+
+    // Load static map
+    this.loadStaticMap();
+  }
+
+  private loadStaticMap(): void {
     const map = this.make.tilemap({ key: "map" });
     this.gameMap = map;
 
@@ -241,6 +268,407 @@ export class GameScene extends Phaser.Scene {
 
     this.setupDebugControls();
     this.setupInputHandling();
+  }
+
+  private async loadOSMMap(): Promise<void> {
+    this.showLoadingIndicator("Requesting location...");
+
+    try {
+      // Get user location
+      const position = await this.getUserLocation();
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
+      this.updateLoadingIndicator("Loading map data...");
+
+      // Check cache first
+      let tilemapData = loadTilemapFromCache(
+        lat,
+        lng,
+        OSM_CONFIG.defaultRadius,
+      );
+
+      if (!tilemapData) {
+        // Generate new tilemap
+        this.updateLoadingIndicator(
+          PLANETILER_CONFIG.enabled
+            ? "Loading map from tile servers..."
+            : "Generating map from OSM data...",
+        );
+        tilemapData = await generateTilemapFromOSM(
+          lat,
+          lng,
+          OSM_CONFIG.defaultRadius,
+          PLANETILER_CONFIG.enabled,
+        );
+
+        // Cache it
+        saveTilemapToCache(lat, lng, OSM_CONFIG.defaultRadius, tilemapData);
+      }
+
+      this.updateLoadingIndicator("Creating map...");
+
+      // Phaser 3 issue: cache.tilemap.add() doesn't automatically detect format
+      // Solution: Manually parse and add the tilemap data with format specification
+      const tilemapDataObj = tilemapData.tilemapData;
+      const cacheKey = "osm-map";
+
+      // Remove any existing entry
+      if (this.cache.tilemap.exists(cacheKey)) {
+        this.cache.tilemap.remove(cacheKey);
+      }
+
+      // Create a cache entry object with format information
+      // Phaser's cache expects: { format: number, data: object }
+      const cacheData = {
+        format: 1, // TILED_JSON format constant (1 = TILED_JSON in Phaser 3)
+        data: tilemapDataObj,
+      };
+
+      // Add to cache with format specified
+      this.cache.tilemap.add(cacheKey, cacheData);
+
+      // Create tilemap from cache - Phaser should now recognize the format
+      const map = this.make.tilemap({ key: cacheKey });
+      this.gameMap = map;
+
+      // Debug: log the tilemap structure
+      console.log("Tilemap created. Total layers:", map.layers.length);
+      console.log(
+        "Available layers:",
+        map.layers.map((l) => ({ id: l.id, name: l.name })),
+      );
+      console.log("Tilemap data keys:", Object.keys(tilemapData.tilemapData));
+      console.log(
+        "Tilemap layers in data:",
+        tilemapData.tilemapData.layers?.length,
+      );
+
+      // Validate tilemap structure
+      if (
+        !tilemapData.tilemapData.layers ||
+        tilemapData.tilemapData.layers.length === 0
+      ) {
+        console.error(
+          "Tilemap has no layers. Tilemap data:",
+          JSON.stringify(tilemapData.tilemapData, null, 2),
+        );
+        throw new Error("Tilemap has no layers - check tilemap data structure");
+      }
+
+      // Check if Phaser parsed the layers - if not, the tilemap structure might be invalid
+      if (map.layers.length === 0) {
+        console.error("Phaser did not parse layers from cache.");
+        console.error("Tilemap data structure:", {
+          hasLayers: !!tilemapData.tilemapData.layers,
+          layersCount: tilemapData.tilemapData.layers?.length,
+          layers: tilemapData.tilemapData.layers,
+          hasTilesets: !!tilemapData.tilemapData.tilesets,
+          tilesetsCount: tilemapData.tilemapData.tilesets?.length,
+        });
+
+        // Fallback: Try to manually create a minimal valid tilemap
+        console.warn("Attempting to create fallback tilemap...");
+        const fallbackTilemap = {
+          ...tilemapData.tilemapData,
+          layers: tilemapData.tilemapData.layers || [
+            {
+              data: new Array(
+                tilemapData.tilemapData.width * tilemapData.tilemapData.height,
+              ).fill(0),
+              height: tilemapData.tilemapData.height,
+              id: 1,
+              name: "Below Player",
+              opacity: 1,
+              type: "tilelayer",
+              visible: true,
+              width: tilemapData.tilemapData.width,
+              x: 0,
+              y: 0,
+            },
+            {
+              data: new Array(
+                tilemapData.tilemapData.width * tilemapData.tilemapData.height,
+              ).fill(0),
+              height: tilemapData.tilemapData.height,
+              id: 2,
+              name: "World",
+              opacity: 1,
+              type: "tilelayer",
+              visible: true,
+              width: tilemapData.tilemapData.width,
+              x: 0,
+              y: 0,
+            },
+            {
+              data: new Array(
+                tilemapData.tilemapData.width * tilemapData.tilemapData.height,
+              ).fill(0),
+              height: tilemapData.tilemapData.height,
+              id: 3,
+              name: "Above Player",
+              opacity: 1,
+              type: "tilelayer",
+              visible: true,
+              width: tilemapData.tilemapData.width,
+              x: 0,
+              y: 0,
+            },
+          ],
+        };
+
+        this.cache.tilemap.remove("osm-map");
+        this.cache.tilemap.add("osm-map", fallbackTilemap);
+        const fallbackMap = this.make.tilemap({ key: "osm-map" });
+
+        if (fallbackMap.layers.length === 0) {
+          throw new Error(
+            "Failed to create tilemap - Phaser could not parse the data structure",
+          );
+        }
+
+        this.gameMap = fallbackMap;
+        console.log(
+          "Fallback tilemap created successfully with",
+          fallbackMap.layers.length,
+          "layers",
+        );
+      }
+
+      // Add tilesets
+      const tileset = map.addTilesetImage(
+        "tuxmon-sample-32px-extruded",
+        "tiles",
+      );
+      const solarTileset = map.addTilesetImage("solar-tileset", "solarTiles");
+
+      if (!tileset) {
+        throw new Error("Tileset not found");
+      }
+
+      const tilesets = solarTileset ? [tileset, solarTileset] : [tileset];
+
+      // Create layers - use the layer names from the tilemap data
+      const belowLayer = map.createLayer("Below Player", tilesets, 0, 0);
+      const worldLayer = map.createLayer("World", tilesets, 0, 0);
+      const aboveLayer = map.createLayer("Above Player", tilesets, 0, 0);
+
+      if (!belowLayer || !worldLayer || !aboveLayer) {
+        console.error(
+          "Failed to create tilemap layers. Available layers:",
+          map.layers.map((l) => l.name),
+        );
+        console.error(
+          "Tilemap data structure:",
+          JSON.stringify(tilemapData.tilemapData, null, 2),
+        );
+        throw new Error("Failed to create tilemap layers");
+      }
+
+      if (worldLayer) {
+        worldLayer.setCollisionByProperty({ collides: true });
+      }
+
+      if (aboveLayer) {
+        aboveLayer.setDepth(10);
+      }
+
+      // Use generated spawn point
+      const spawnX = tilemapData.spawnX;
+      const spawnY = tilemapData.spawnY;
+
+      this.hideLoadingIndicator();
+
+      // Setup input
+      this.isMobile = isMobileDevice();
+      if (this.isMobile) {
+        this.virtualCursors = createVirtualCursorKeys();
+        this.cursors = this.virtualCursors;
+        this.setupMobileControls();
+      } else {
+        this.cursors = this.input.keyboard?.createCursorKeys();
+      }
+
+      this.player = new Player(
+        this,
+        spawnX,
+        spawnY,
+        this.cursors ?? {
+          up: { isDown: false },
+          down: { isDown: false },
+          left: { isDown: false },
+          right: { isDown: false },
+        },
+      );
+
+      if (worldLayer) {
+        this.physics.add.collider(this.player.getSprite(), worldLayer);
+      }
+
+      const camera = this.cameras.main;
+      camera.startFollow(this.player.getSprite());
+      camera.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+
+      // Initialize systems
+      this.initSystems();
+
+      // Initialize music
+      this.initMusic();
+
+      // Start music after game loads
+      this.startMusic();
+
+      // Ensure music continues when tab loses focus
+      this.setupBackgroundAudio();
+
+      // Create volume toggle icon
+      this.createVolumeToggleIcon();
+
+      // Initialize multiplayer
+      this.initMultiplayer();
+
+      this.setupDebugControls();
+      this.setupInputHandling();
+    } catch (error) {
+      console.error("Failed to load OSM map:", error);
+      this.hideLoadingIndicator();
+
+      // Show error and fallback to static map
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+
+      let userMessage = "Failed to load OSM map. ";
+      if (errorMessage.includes("timeout") || errorMessage.includes("504")) {
+        userMessage += "The OSM server is taking too long to respond. ";
+      } else if (errorMessage.includes("Geolocation")) {
+        userMessage += "Could not access your location. ";
+      }
+      userMessage += "Falling back to static map.";
+
+      this.showErrorDialog(userMessage, () => {
+        this.mapType = "static";
+        localStorage.setItem("mapType", "static");
+        this.loadStaticMap();
+      });
+    }
+  }
+
+  private getUserLocation(): Promise<GeolocationPosition> {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation is not supported by this browser"));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        (error) => {
+          reject(
+            new Error(
+              `Geolocation error: ${error.message || "Permission denied"}`,
+            ),
+          );
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        },
+      );
+    });
+  }
+
+  private showLoadingIndicator(text: string): void {
+    if (this.loadingIndicator) {
+      this.loadingIndicator.destroy();
+    }
+
+    const width = this.cameras.main.width;
+    const height = this.cameras.main.height;
+
+    this.loadingIndicator = this.add.container(width / 2, height / 2);
+    this.loadingIndicator.setScrollFactor(0);
+    this.loadingIndicator.setDepth(1000);
+
+    const bg = this.add.rectangle(0, 0, 400, 150, 0x000000, 0.8);
+    bg.setStrokeStyle(2, 0xffffff);
+    this.loadingIndicator.add(bg);
+
+    const loadingText = this.add.text(0, -30, text, {
+      fontSize: "20px",
+      fontFamily: "monospace",
+      color: "#ffffff",
+      align: "center",
+    });
+    loadingText.setOrigin(0.5, 0.5);
+    this.loadingIndicator.add(loadingText);
+
+    // Store text reference for updates
+    (this.loadingIndicator as any).text = loadingText;
+  }
+
+  private updateLoadingIndicator(text: string): void {
+    if (this.loadingIndicator && (this.loadingIndicator as any).text) {
+      (this.loadingIndicator as any).text.setText(text);
+    }
+  }
+
+  private hideLoadingIndicator(): void {
+    if (this.loadingIndicator) {
+      this.loadingIndicator.destroy();
+      this.loadingIndicator = undefined;
+    }
+  }
+
+  private showErrorDialog(message: string, onClose: () => void): void {
+    const width = this.cameras.main.width;
+    const height = this.cameras.main.height;
+
+    const dialog = this.add.container(width / 2, height / 2);
+    dialog.setScrollFactor(0);
+    dialog.setDepth(1001);
+
+    const bg = this.add.rectangle(0, 0, 500, 200, 0x000000, 0.9);
+    bg.setStrokeStyle(2, 0xff0000);
+    dialog.add(bg);
+
+    const errorText = this.add.text(0, -30, message, {
+      fontSize: "18px",
+      fontFamily: "monospace",
+      color: "#ff6666",
+      align: "center",
+      wordWrap: { width: 450 },
+    });
+    errorText.setOrigin(0.5, 0.5);
+    dialog.add(errorText);
+
+    const okText = this.add.text(0, 50, "Press SPACE to continue", {
+      fontSize: "16px",
+      fontFamily: "monospace",
+      color: "#ffffff",
+      align: "center",
+    });
+    okText.setOrigin(0.5, 0.5);
+    dialog.add(okText);
+
+    const spaceKey = this.input.keyboard?.addKey(
+      Phaser.Input.Keyboard.KeyCodes.SPACE,
+    );
+    const handleSpace = () => {
+      spaceKey?.off("down", handleSpace);
+      dialog.destroy();
+      onClose();
+    };
+    spaceKey?.on("down", handleSpace);
+  }
+
+  public setMapType(type: "static" | "osm"): void {
+    this.mapType = type;
+    localStorage.setItem("mapType", type);
+  }
+
+  public getMapType(): "static" | "osm" {
+    return this.mapType;
   }
 
   private setupMobileControls(): void {

@@ -11,5 +11,7 @@ export const MENU_DIALOG_TEXTS: Record<string, string> = {
     "Adjust game settings here. You can change the text speed, sound volume, and other preferences.",
   Debug:
     "Debug mode activated. This mode shows additional information for developers.",
+  "Mappa OSM":
+    "Switch between static map and OSM-generated map. The OSM map uses your real-world location to generate a Pokémon-style tilemap.",
   Exit: "Are you sure you want to exit? Any unsaved progress will be lost.",
 };

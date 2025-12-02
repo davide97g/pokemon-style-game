@@ -414,6 +414,12 @@ export class MenuSystem {
       return;
     }
 
+    if (entry === "Mappa OSM") {
+      // Handle OSM map toggle
+      this.handleOSMMapToggle();
+      return;
+    }
+
     // For other entries, close menu and show dialog
     this.isMenuOpen = false;
     if (this.menuContainer) {
@@ -426,6 +432,36 @@ export class MenuSystem {
       const dialogText = MENU_DIALOG_TEXTS[entry] || `${entry} selected.`;
       this.onMenuSelect(dialogText, speaker);
     }
+  }
+
+  private handleOSMMapToggle(): void {
+    const gameScene = this.scene as GameScene;
+    const currentMapType = gameScene.getMapType();
+    const newMapType = currentMapType === "static" ? "osm" : "static";
+
+    // Close menu
+    this.isMenuOpen = false;
+    if (this.menuContainer) {
+      this.menuContainer.setVisible(false);
+    }
+    this.hideVolumeSlider();
+
+    // Show confirmation dialog
+    const dialogText =
+      newMapType === "osm"
+        ? "Switch to OSM map? This will use your real-world location. The game will reload."
+        : "Switch to static map? The game will reload.";
+
+    if (this.onMenuSelect) {
+      this.onMenuSelect(dialogText, "System");
+    }
+
+    // Wait a bit, then switch map type and reload
+    this.scene.time.delayedCall(2000, () => {
+      gameScene.setMapType(newMapType);
+      // Reload the scene
+      this.scene.scene.restart();
+    });
   }
 
   public isOpen(): boolean {

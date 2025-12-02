@@ -5,6 +5,7 @@ export const MENU_ENTRIES = [
   "Pokégear",
   "Red",
   "Save",
+  "Mappa OSM",
   "Options",
   "Debug",
   "Exit",
