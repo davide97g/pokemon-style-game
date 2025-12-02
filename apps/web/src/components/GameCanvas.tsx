@@ -9,6 +9,7 @@ import { useKeyboard } from "../hooks/useKeyboard";
 import { ChatUI } from "./ChatUI";
 import { GameDialog } from "./GameDialog";
 import { GameMenu } from "./GameMenu";
+import { InventoryUI } from "./InventoryUI";
 import MobileControls from "./MobileControls";
 import { WeatherWidget } from "./WeatherWidget";
 
@@ -35,8 +36,14 @@ export function GameCanvas() {
     speaker: undefined as string | undefined,
   });
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isNearStatue, setIsNearStatue] = useState(false);
   const statuePosition = useRef<{ x: number; y: number } | null>(null);
+
+  // Inventory state
+  const [inventoryItems, setInventoryItems] = useState<
+    Map<string, { id: string; name: string; color: string; quantity: number }>
+  >(new Map());
 
   // Input
   const keyboardKeys = useKeyboard();
@@ -172,6 +179,72 @@ export function GameCanvas() {
           statuePosition.current = statue;
         }
 
+        // Initialize inventory items
+        const initialItems = new Map([
+          [
+            "grass",
+            { id: "grass", name: "Grass", color: "#4a7c59", quantity: 4 },
+          ],
+          [
+            "water",
+            { id: "water", name: "Water", color: "#5dade2", quantity: 4 },
+          ],
+          [
+            "mushroom_blue",
+            {
+              id: "mushroom_blue",
+              name: "Blue Mushroom",
+              color: "#3498db",
+              quantity: 4,
+            },
+          ],
+          [
+            "stone",
+            { id: "stone", name: "Stone", color: "#7f8c8d", quantity: 4 },
+          ],
+          [
+            "cactus",
+            { id: "cactus", name: "Cactus", color: "#52be80", quantity: 4 },
+          ],
+          [
+            "stone_dark",
+            {
+              id: "stone_dark",
+              name: "Dark Stone",
+              color: "#34495e",
+              quantity: 4,
+            },
+          ],
+          ["bone", { id: "bone", name: "Bone", color: "#ecf0f1", quantity: 4 }],
+          ["wood", { id: "wood", name: "Wood", color: "#8b4513", quantity: 4 }],
+          ["rope", { id: "rope", name: "Rope", color: "#8b6914", quantity: 4 }],
+          [
+            "pebble",
+            { id: "pebble", name: "Pebble", color: "#95a5a6", quantity: 4 },
+          ],
+          [
+            "shell",
+            { id: "shell", name: "Shell", color: "#f4d03f", quantity: 4 },
+          ],
+          ["dust", { id: "dust", name: "Dust", color: "#bdc3c7", quantity: 4 }],
+          [
+            "mushroom_brown",
+            {
+              id: "mushroom_brown",
+              name: "Brown Mushroom",
+              color: "#8b4513",
+              quantity: 4,
+            },
+          ],
+          [
+            "plank",
+            { id: "plank", name: "Plank", color: "#d2691e", quantity: 4 },
+          ],
+          ["log", { id: "log", name: "Log", color: "#654321", quantity: 4 }],
+          ["coin", { id: "coin", name: "Coin", color: "#ffd700", quantity: 4 }],
+        ]);
+        setInventoryItems(initialItems);
+
         setLoading(false);
       } catch (err) {
         console.error("Failed to load assets:", err);
@@ -208,10 +281,10 @@ export function GameCanvas() {
 
   // Handle menu toggle
   useEffect(() => {
-    if (keys.enter && !isMenuOpen && !isChatOpen) {
+    if (keys.enter && !isMenuOpen && !isChatOpen && !isInventoryOpen) {
       setIsMenuOpen(true);
     }
-  }, [keys.enter, isMenuOpen, isChatOpen]);
+  }, [keys.enter, isMenuOpen, isChatOpen, isInventoryOpen]);
 
   // Handle chat toggle with "C" key
   const lastCKeyState = useRef(false);
@@ -223,12 +296,24 @@ export function GameCanvas() {
       !lastCKeyState.current &&
       isNearStatue &&
       !isChatOpen &&
-      !isMenuOpen
+      !isMenuOpen &&
+      !isInventoryOpen
     ) {
       setIsChatOpen(true);
     }
     lastCKeyState.current = cKeyPressed;
-  }, [keys.c, isNearStatue, isChatOpen, isMenuOpen]);
+  }, [keys.c, isNearStatue, isChatOpen, isMenuOpen, isInventoryOpen]);
+
+  // Handle inventory toggle with "I" key
+  const lastIKeyState = useRef(false);
+  useEffect(() => {
+    const iKeyPressed = keys.i === true;
+    // Only trigger on key press (transition from false to true)
+    if (iKeyPressed && !lastIKeyState.current && !isChatOpen && !isMenuOpen) {
+      setIsInventoryOpen((prev) => !prev);
+    }
+    lastIKeyState.current = iKeyPressed;
+  }, [keys.i, isChatOpen, isMenuOpen]);
 
   // Check proximity to statue
   useEffect(() => {
@@ -241,15 +326,19 @@ export function GameCanvas() {
     setIsNearStatue(distance < STATUE_PROXIMITY_DISTANCE);
   }, [player.x, player.y]);
 
-  // Track chat/menu state in refs to avoid restarting game loop
+  // Track chat/menu/inventory state in refs to avoid restarting game loop
   const isChatOpenRef = useRef(isChatOpen);
   const isMenuOpenRef = useRef(isMenuOpen);
+  const isInventoryOpenRef = useRef(isInventoryOpen);
   useEffect(() => {
     isChatOpenRef.current = isChatOpen;
   }, [isChatOpen]);
   useEffect(() => {
     isMenuOpenRef.current = isMenuOpen;
   }, [isMenuOpen]);
+  useEffect(() => {
+    isInventoryOpenRef.current = isInventoryOpen;
+  }, [isInventoryOpen]);
 
   // Game loop
   useGameLoop((deltaTime) => {
@@ -258,8 +347,12 @@ export function GameCanvas() {
     const ctx = canvasRef.current.getContext("2d");
     if (!ctx) return;
 
-    // Update player (only if chat and menu are closed)
-    if (!isChatOpenRef.current && !isMenuOpenRef.current) {
+    // Update player (only if chat, menu, and inventory are closed)
+    if (
+      !isChatOpenRef.current &&
+      !isMenuOpenRef.current &&
+      !isInventoryOpenRef.current
+    ) {
       updatePlayer(deltaTime, keys, collisionSystem.current);
     }
 
@@ -418,6 +511,11 @@ export function GameCanvas() {
           }}
         />
         <ChatUI isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+        <InventoryUI
+          isOpen={isInventoryOpen}
+          onClose={() => setIsInventoryOpen(false)}
+          items={inventoryItems}
+        />
         {isNearStatue && !isChatOpen && (
           <div className="absolute bottom-20 right-4 pointer-events-auto animate-bounce">
             <div className="bg-gray-800/90 border-2 border-gray-600 rounded-lg p-3 text-center">
