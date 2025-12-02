@@ -116,17 +116,31 @@ export class Player {
     this.sprite.body.velocity.normalize().scale(PLAYER_SPEED);
 
     // Update the animation and direction
+    const currentAnimKey = this.sprite.anims.currentAnim?.key;
+
     if (this.cursors.left.isDown) {
-      this.sprite.anims.play("misa-left-walk", true);
+      if (currentAnimKey !== "misa-left-walk") {
+        this.sprite.anims.play("misa-left-walk", true);
+      }
       this.currentDirection = "left";
     } else if (this.cursors.right.isDown) {
-      this.sprite.anims.play("misa-right-walk", true);
+      if (currentAnimKey !== "misa-right-walk") {
+        this.sprite.anims.play("misa-right-walk", true);
+      }
       this.currentDirection = "right";
     } else if (this.cursors.up.isDown) {
-      this.sprite.anims.play("misa-back-walk", true);
+      if (currentAnimKey !== "misa-back-walk") {
+        // Set the first frame of the animation immediately to prevent invisible frame
+        this.sprite.setTexture("atlas", "misa-back-walk.000");
+        this.sprite.anims.play("misa-back-walk", true);
+      }
       this.currentDirection = "up";
     } else if (this.cursors.down.isDown) {
-      this.sprite.anims.play("misa-front-walk", true);
+      if (currentAnimKey !== "misa-front-walk") {
+        // Set the first frame of the animation immediately to prevent invisible frame
+        this.sprite.setTexture("atlas", "misa-front-walk.000");
+        this.sprite.anims.play("misa-front-walk", true);
+      }
       this.currentDirection = "down";
     } else {
       this.sprite.anims.stop();
