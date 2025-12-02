@@ -165,6 +165,12 @@ export class GameScene extends Phaser.Scene {
     ["wood", 5],
   ]);
 
+  // Tree spawning configuration
+  // TREE_TILE_GID: Use debug mode (press T) and click on a tree tile to find its GID
+  // Then set this value to that GID. Default is 173 (may need adjustment)
+  private readonly TREE_TILE_GID = 122;
+  private readonly WOOD_REQUIRED_FOR_TREE = 4;
+
   constructor() {
     super({ key: "GameScene" });
   }
@@ -356,6 +362,7 @@ export class GameScene extends Phaser.Scene {
     this.createInventoryRecap();
     this.setupInventoryControls();
     this.setupCollectionControls();
+    this.setupTreeSpawningControls();
   }
 
   private setupMobileControls(): void {
@@ -669,21 +676,30 @@ export class GameScene extends Phaser.Scene {
 
         const tile = layer.tilemapLayer?.getTileAtWorldXY(worldX, worldY);
         if (tile && tile.index !== null && tile.index !== -1) {
-          const firstGID = this.gameMap?.tilesets[0]?.firstgid || 1;
+          // Get the correct tileset for this tile
+          const tileset = tile.tileset;
+          const firstGID = tileset?.firstgid || 1;
+
+          // Calculate the correct GID using the tile's actual tileset
+          // tile.index is the local index within the tileset, so we add firstgid to get the global GID
           const tileGID = tile.index + firstGID;
+
           const tileX = Math.floor(worldX / (this.gameMap?.tileWidth || 0));
           const tileY = Math.floor(worldY / (this.gameMap?.tileHeight || 0));
 
           debugLog(`\n=== Tile Info ===`);
           debugLog(`Layer: ${layerName}`);
           debugLog(`Position: (${tileX}, ${tileY})`);
-          debugLog(`Tile Index: ${tile.index}`);
+          debugLog(`Tile Index (local): ${tile.index}`);
+          debugLog(`Tileset: ${tileset?.name || "unknown"}`);
+          debugLog(`Tileset firstGID: ${firstGID}`);
           debugLog(`Tile GID (Global ID): ${tileGID}`);
           debugLog(`Collides: ${tile.collides || false}`);
           if (tile.properties) {
             debugLog(`Properties:`, tile.properties);
           }
-          debugLog(`\nTile GID: ${tileGID}`);
+          debugLog(`\n=== Summary ===`);
+          debugLog(`Tile GID: ${tileGID}`);
         }
       });
     });
@@ -1568,6 +1584,24 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private removeItemFromInventory(
+    itemId: string,
+    quantity: number = 1,
+  ): boolean {
+    const item = this.inventoryItems.get(itemId);
+    if (item && item.quantity >= quantity) {
+      item.quantity -= quantity;
+      this.updateInventoryDisplay();
+      return true;
+    }
+    return false;
+  }
+
+  private getItemQuantity(itemId: string): number {
+    const item = this.inventoryItems.get(itemId);
+    return item?.quantity || 0;
+  }
+
   private checkTileProximity(): {
     itemId: string;
     tileX: number;
@@ -1744,6 +1778,76 @@ export class GameScene extends Phaser.Scene {
         }
       }
     });
+  }
+
+  private setupTreeSpawningControls(): void {
+    const spawnTreeKey = this.input.keyboard?.addKey(
+      Phaser.Input.Keyboard.KeyCodes.B,
+    );
+
+    spawnTreeKey?.on("down", () => {
+      if (
+        this.chatSystem?.isOpen() ||
+        this.menuSystem?.isOpen() ||
+        this.dialogSystem?.isVisible() ||
+        this.isInventoryOpen
+      ) {
+        return;
+      }
+
+      this.handleSpawnTree();
+    });
+  }
+
+  private handleSpawnTree(): void {
+    if (!this.player || !this.gameMap || !this.worldLayer) {
+      return;
+    }
+
+    // Check if player has enough wood
+    const woodQuantity = this.getItemQuantity("wood");
+    if (woodQuantity < this.WOOD_REQUIRED_FOR_TREE) {
+      debugLog(
+        `Not enough wood! Need ${this.WOOD_REQUIRED_FOR_TREE}, have ${woodQuantity}`,
+      );
+      return;
+    }
+
+    // Get player position and convert to tile coordinates
+    const playerPos = this.player.getPosition();
+    const tileWidth = this.gameMap.tileWidth || 32;
+    const tileHeight = this.gameMap.tileHeight || 32;
+    const tileX = Math.floor(playerPos.x / tileWidth);
+    const tileY = Math.floor(playerPos.y / tileHeight);
+
+    // Check if the tile is already occupied (has a colliding tile)
+    const existingTile = this.worldLayer.getTileAt(tileX, tileY);
+    if (existingTile?.collides) {
+      debugLog(`Cannot spawn tree at (${tileX}, ${tileY}) - tile is occupied`);
+      return;
+    }
+
+    // Place the tree tile using the GID directly
+    // putTileAt expects a tile index (GID)
+    this.worldLayer.putTileAt(this.TREE_TILE_GID, tileX, tileY);
+
+    // Set collision property for the tree
+    const newTile = this.worldLayer.getTileAt(tileX, tileY);
+    if (newTile) {
+      newTile.setCollision(true);
+    }
+
+    // Remove wood from inventory
+    const removed = this.removeItemFromInventory(
+      "wood",
+      this.WOOD_REQUIRED_FOR_TREE,
+    );
+    if (removed) {
+      this.destroySound?.play();
+      debugLog(
+        `Spawned tree at (${tileX}, ${tileY}) using ${this.WOOD_REQUIRED_FOR_TREE} wood`,
+      );
+    }
   }
 
   private hideTile(tileX: number, tileY: number): void {
