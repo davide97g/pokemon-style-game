@@ -217,7 +217,6 @@ export class GameScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image("tiles", ASSET_PATHS.tiles);
-    this.load.image("txProps", ASSET_PATHS.txProps);
     this.load.tilemapTiledJSON("map", ASSET_PATHS.map);
     this.load.atlas("atlas", ASSET_PATHS.atlas.image, ASSET_PATHS.atlas.json);
     this.load.audio("mainTheme", ASSET_PATHS.music.mainTheme);
@@ -235,19 +234,14 @@ export class GameScene extends Phaser.Scene {
     const map = this.make.tilemap({ key: "map" });
     this.gameMap = map;
 
-    const tileset = map.addTilesetImage("tuxmon-sample-32px-extruded", "tiles");
-    const txPropsTileset = map.addTilesetImage("txProps", "txProps");
+    const tileset = map.addTilesetImage("base-terrain", "tiles");
+
     if (!tileset) {
       console.error("Tileset not found");
       return;
     }
-    if (!txPropsTileset) {
-      console.error("TX Props tileset not found");
-      return;
-    }
-
     // Create layers with both tilesets
-    const tilesets = [tileset, txPropsTileset];
+    const tilesets = [tileset];
 
     map.createLayer("Below Player", tilesets, 0, 0);
     const worldLayer = map.createLayer("World", tilesets, 0, 0);
