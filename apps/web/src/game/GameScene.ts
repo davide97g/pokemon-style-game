@@ -2633,11 +2633,87 @@ export class GameScene extends Phaser.Scene {
     if (group) {
       debugLog(`Found tile group with ${group.length} tiles:`);
       const maxDistance = Math.max(...group.map((t) => t.distance));
-      group.forEach((tileInfo, index) => {
+
+      // Log all tiles about to be destroyed with their properties
+      console.log(
+        `\n=== TILES ABOUT TO BE DESTROYED (${group.length} tiles) ===`,
+      );
+
+      // Collect all tile information first
+      const tileData = group.map((tileInfo, index) => {
+        const layer =
+          tileInfo.layer === "world" ? this.worldLayer : this.aboveLayer;
+        const tile = layer?.getTileAt(tileInfo.x, tileInfo.y);
+
+        const tileStamp = tile ? this.getTileProperty(tile, "tilestamp") : null;
+        const tileGID = tile
+          ? tile.index !== null && tile.index !== -1
+            ? tile.index + (tile.tileset?.firstgid || 1)
+            : null
+          : null;
+
+        return {
+          index,
+          layer: tileInfo.layer,
+          position: { x: tileInfo.x, y: tileInfo.y },
+          group: tileInfo.group,
+          distance: tileInfo.distance,
+          tilestamp: tileStamp || null,
+          gid: tileGID,
+          tileIndex: tile?.index,
+          hasTile: !!tile,
+        };
+      });
+
+      // Log each tile
+      tileData.forEach((data) => {
+        console.log(`[${data.index}] Tile Info:`, {
+          layer: data.layer,
+          position: `(${data.position.x}, ${data.position.y})`,
+          group: data.group,
+          distance: data.distance,
+          tilestamp: data.tilestamp || "none",
+          gid: data.gid,
+          tileIndex: data.tileIndex,
+          hasTile: data.hasTile,
+        });
+
         debugLog(
-          `  [${index}] Layer: ${tileInfo.layer}, Position: (${tileInfo.x}, ${tileInfo.y}), Group: "${tileInfo.group}", Distance: ${tileInfo.distance}`,
+          `  [${data.index}] Layer: ${data.layer}, Position: (${
+            data.position.x
+          }, ${data.position.y}), Group: "${data.group}", Distance: ${
+            data.distance
+          }, TileStamp: "${data.tilestamp || "none"}"`,
         );
       });
+
+      // Group tiles by tilestamp and show matches
+      const tilesByStamp = new Map<string, typeof tileData>();
+      tileData.forEach((data) => {
+        if (data.tilestamp) {
+          if (!tilesByStamp.has(data.tilestamp)) {
+            tilesByStamp.set(data.tilestamp, []);
+          }
+          tilesByStamp.get(data.tilestamp)?.push(data);
+        }
+      });
+
+      if (tilesByStamp.size > 0) {
+        console.log(`\n=== TILES GROUPED BY TILESTAMP ===`);
+        tilesByStamp.forEach((tiles, stamp) => {
+          console.log(`TileStamp "${stamp}": ${tiles.length} tile(s)`);
+          tiles.forEach((tile) => {
+            console.log(
+              `  - ${tile.layer} layer at (${tile.position.x}, ${tile.position.y}), distance: ${tile.distance}`,
+            );
+          });
+        });
+        console.log(`=== END OF TILESTAMP GROUPS ===\n`);
+      } else {
+        console.log(`\n⚠️  No tiles have a "tilestamp" property\n`);
+      }
+
+      console.log(`=== END OF TILES TO BE DESTROYED ===\n`);
       debugLog(`  Max distance from center: ${maxDistance}`);
 
       // Hide all tiles in the group
@@ -2653,6 +2729,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         const tile = layer.getTileAt(tileInfo.x, tileInfo.y);
+
         if (tile) {
           const beforeAlpha = tile.alpha;
           tile.setAlpha(0);
