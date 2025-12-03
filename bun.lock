@@ -8,7 +8,7 @@
         "@biomejs/biome": "2.3.8",
         "@types/bun": "latest",
         "husky": "^9.1.7",
-        "turbo": "^2.0.0",
+        "turbo": "^2.6.1",
       },
     },
     "apps/server": {
@@ -39,6 +39,7 @@
         "react-dom": "^19.0.0",
       },
       "devDependencies": {
+        "@biomejs/biome": "^2.3.8",
         "@tailwindcss/postcss": "^4.1.17",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
