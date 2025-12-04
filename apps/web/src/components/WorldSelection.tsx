@@ -8,6 +8,23 @@ import {
   startSession,
   type WorldMetadata,
 } from "../game/services/SaveService";
+import { Button } from "./ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 interface WorldSelectionProps {
   onWorldSelected: (worldId: string) => void;
@@ -80,53 +97,56 @@ const WorldSelection = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-      <div className="bg-gray-900 border-2 border-white border-opacity-30 rounded-lg p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <h1 className="text-4xl font-bold text-white mb-2 text-center font-mono">
-          Mini World
-        </h1>
-        <p className="text-gray-400 text-center mb-8 text-sm">
-          Select a world or create a new one
-        </p>
+    <Dialog open={true} onOpenChange={() => {}}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto dark bg-gray-900 border-2 border-white border-opacity-30">
+        <DialogHeader>
+          <DialogTitle className="text-4xl font-bold text-white text-center font-mono">
+            Mini World
+          </DialogTitle>
+          <DialogDescription className="text-gray-400 text-center text-sm">
+            Select a world or create a new one
+          </DialogDescription>
+        </DialogHeader>
 
         {showCreateForm ? (
           <div className="space-y-4">
-            <div>
-              <label
+            <div className="space-y-2">
+              <Label
                 htmlFor="world-name"
-                className="block text-white mb-2 font-mono text-sm"
+                className="text-white font-mono text-sm"
               >
                 World Name
-              </label>
-              <input
+              </Label>
+              <Input
                 id="world-name"
                 type="text"
                 value={newWorldName}
                 onChange={(e) => setNewWorldName(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Enter world name..."
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded text-white font-mono focus:outline-none focus:border-white focus:border-opacity-50"
+                className="bg-gray-800 border-gray-600 text-white font-mono focus:border-white focus:border-opacity-50"
                 disabled={isCreating}
               />
             </div>
             <div className="flex gap-4">
-              <button
+              <Button
                 type="button"
                 onClick={handleCreateWorld}
                 disabled={isCreating || !newWorldName.trim()}
-                className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-mono rounded transition-colors"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-mono"
               >
                 {isCreating ? "Creating..." : "Create World"}
-              </button>
+              </Button>
               {worlds.length > 0 && (
-                <button
+                <Button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
                   disabled={isCreating}
-                  className="px-6 py-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white font-mono rounded transition-colors"
+                  variant="secondary"
+                  className="bg-gray-700 hover:bg-gray-600 text-white font-mono"
                 >
                   Cancel
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -139,56 +159,74 @@ const WorldSelection = ({
                 </p>
               ) : (
                 worlds.map((world) => (
-                  <button
+                  <Card
                     key={world.worldId}
-                    type="button"
-                    onClick={() => handleSelectWorld(world.worldId)}
-                    className="w-full text-left bg-gray-800 border border-gray-700 rounded p-4 cursor-pointer hover:bg-gray-750 hover:border-white hover:border-opacity-30 transition-all"
-                    aria-label={`Select world ${world.worldName}`}
+                    className="bg-gray-800 border-gray-700 hover:bg-gray-750 hover:border-white hover:border-opacity-30 transition-all"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-white font-mono text-lg mb-1">
-                          {world.worldName}
-                        </h3>
-                        <div className="text-gray-400 text-xs font-mono space-y-1">
-                          <p>Playtime: {formatPlayTime(world.totalPlayTime)}</p>
-                          <p>
-                            Last played:{" "}
-                            {new Date(world.lastPlayedAt).toLocaleDateString()}{" "}
-                            {new Date(world.lastPlayedAt).toLocaleTimeString()}
-                          </p>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSelectWorld(world.worldId)}
+                          className="flex-1 text-left bg-transparent"
+                          aria-label={`Select world ${world.worldName}`}
+                        >
+                          <CardHeader className="p-0 pb-2">
+                            <CardTitle className="text-white font-mono text-lg">
+                              {world.worldName}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardDescription className="text-gray-400 text-xs font-mono space-y-1">
+                            <p>
+                              Playtime: {formatPlayTime(world.totalPlayTime)}
+                            </p>
+                            <p>
+                              Last played:{" "}
+                              {new Date(
+                                world.lastPlayedAt,
+                              ).toLocaleDateString()}{" "}
+                              {new Date(
+                                world.lastPlayedAt,
+                              ).toLocaleTimeString()}
+                            </p>
+                          </CardDescription>
+                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            onClick={(e) =>
+                              handleDeleteWorld(
+                                world.worldId,
+                                world.worldName,
+                                e,
+                              )
+                            }
+                            variant="destructive"
+                            size="sm"
+                            className="bg-red-600 hover:bg-red-700 text-white text-xs font-mono"
+                            aria-label={`Delete world ${world.worldName}`}
+                          >
+                            Delete
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={(e) =>
-                            handleDeleteWorld(world.worldId, world.worldName, e)
-                          }
-                          className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-mono rounded transition-colors"
-                          aria-label={`Delete world ${world.worldName}`}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </button>
+                    </CardContent>
+                  </Card>
                 ))
               )}
             </div>
 
-            <button
+            <Button
               type="button"
               onClick={() => setShowCreateForm(true)}
-              className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-mono rounded transition-colors"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-mono"
             >
               Create New World
-            </button>
+            </Button>
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
