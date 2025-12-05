@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import GameCanvas from "./components/GameCanvas";
 import GameUI from "./components/GameUI";
 import WorldSelection from "./components/WorldSelection";
@@ -6,6 +6,25 @@ import WorldSelection from "./components/WorldSelection";
 const App = () => {
   const [showWorldSelection, setShowWorldSelection] = useState(true);
   const [worldId, setWorldId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleExitToWorldSelection = () => {
+      setShowWorldSelection(true);
+      setWorldId(null);
+    };
+
+    window.addEventListener(
+      "game:exit-to-world-selection",
+      handleExitToWorldSelection,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "game:exit-to-world-selection",
+        handleExitToWorldSelection,
+      );
+    };
+  }, []);
 
   const handleWorldSelected = (selectedWorldId: string) => {
     setWorldId(selectedWorldId);

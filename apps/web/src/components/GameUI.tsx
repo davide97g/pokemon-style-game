@@ -5,6 +5,7 @@ import { gameEventBus } from "../game/utils/GameEventBus";
 import MobileControls from "./MobileControls";
 import ChatUI from "./ui/ChatUI";
 import DialogUI from "./ui/DialogUI";
+import InventoryBar from "./ui/InventoryBar";
 import InventoryUI from "./ui/InventoryUI";
 import MenuUI from "./ui/MenuUI";
 import NotificationUI from "./ui/NotificationUI";
@@ -28,6 +29,7 @@ const GameUI = ({ worldId }: GameUIProps) => {
   const [notifications, setNotifications] = useState<
     Array<{ id: string; itemId: string; quantity: number }>
   >([]);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   // Initialize inventory from ITEM_TYPES
   useEffect(() => {
@@ -178,6 +180,11 @@ const GameUI = ({ worldId }: GameUIProps) => {
       }
     };
 
+    const handleExitToWorldSelection = () => {
+      // Emit custom event that App.tsx can listen to
+      window.dispatchEvent(new CustomEvent("game:exit-to-world-selection"));
+    };
+
     // Subscribe to events
     const unsubscribers = [
       gameEventBus.on("inventory:toggle", handleInventoryToggle),
@@ -196,6 +203,10 @@ const GameUI = ({ worldId }: GameUIProps) => {
       gameEventBus.on("chat:near-statue", handleNearStatue),
       gameEventBus.on("chat:not-near-statue", handleNotNearStatue),
       gameEventBus.on("notification:item-collected", handleItemCollected),
+      gameEventBus.on(
+        "game:exit-to-world-selection",
+        handleExitToWorldSelection,
+      ),
     ];
 
     return () => {
@@ -227,6 +238,11 @@ const GameUI = ({ worldId }: GameUIProps) => {
 
   const handleStart = () => {
     window.dispatchEvent(new CustomEvent("mobileStart"));
+  };
+
+  const handleItemSelect = (itemId: string | null) => {
+    setSelectedItemId(itemId);
+    gameEventBus.emit("inventory:item-selected", { itemId });
   };
 
   if (!worldId) {
@@ -265,6 +281,11 @@ const GameUI = ({ worldId }: GameUIProps) => {
         onClose={() => {
           gameEventBus.emit("chat:close");
         }}
+      />
+      <InventoryBar
+        inventory={inventory}
+        selectedItemId={selectedItemId}
+        onItemSelect={handleItemSelect}
       />
       <WeatherUI />
       <NotificationUI notifications={notifications} />

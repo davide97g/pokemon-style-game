@@ -234,7 +234,6 @@ export class GameScene extends Phaser.Scene {
     this.audioSystem.init();
     this.audioSystem.startMusic();
     this.audioSystem.setupBackgroundAudio();
-    this.audioSystem.createVolumeToggleIcon();
 
     // Initialize inventory system
     this.inventorySystem = new InventorySystem();
@@ -672,6 +671,36 @@ export class GameScene extends Phaser.Scene {
 
     // Setup keyboard controls for menu/dialog
     this.setupMenuDialogControls();
+
+    // Listen to game events
+    gameEventBus.on("game:save", () => {
+      this.saveGameState();
+    });
+
+    // Listen to volume changes from UI
+    gameEventBus.on("menu:volume-change", (payload?: unknown) => {
+      if (
+        payload &&
+        typeof payload === "object" &&
+        "volume" in payload &&
+        typeof payload.volume === "number"
+      ) {
+        this.audioSystem?.setMusicVolume(payload.volume);
+      }
+    });
+
+    // Listen to audio toggle events
+    gameEventBus.on("audio:toggle-mute", () => {
+      this.audioSystem?.toggleMute();
+      const isMuted = this.audioSystem?.isMutedState() || false;
+      gameEventBus.emit("audio:mute-state-changed", { isMuted });
+    });
+
+    // Emit initial mute state after audio system is initialized
+    this.time.delayedCall(100, () => {
+      const isMuted = this.audioSystem?.isMutedState() || false;
+      gameEventBus.emit("audio:mute-state-changed", { isMuted });
+    });
   }
 
   private setupMenuDialogControls(): void {

@@ -1,6 +1,9 @@
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useCallback, useEffect, useState } from "react";
 import { DIALOG_TYPING_SPEED } from "../../game/config/GameConstants";
 import { gameEventBus } from "../../game/utils/GameEventBus";
+import { cn } from "../../lib/utils";
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "./dialog";
 
 interface DialogUIProps {
   isVisible: boolean;
@@ -104,23 +107,43 @@ const DialogUI = ({ isVisible, text, speaker, onClose }: DialogUIProps) => {
     };
   }, [isVisible, handleAdvance]);
 
-  if (!isVisible) {
-    return null;
-  }
-
   return (
-    <div className="fixed bottom-8 left-8 right-8 z-50">
-      <div className="bg-lightblue border-4 border-blue-600 rounded-lg p-4 max-w-4xl mx-auto">
-        <p className="text-black text-base font-mono mb-2">{displayedText}</p>
-        {showIndicator && (
-          <div className="text-right">
-            <span className="text-black text-xl font-mono animate-bounce">
-              →
-            </span>
+    <Dialog open={isVisible} onOpenChange={(open) => !open && onClose()}>
+      <DialogPrimitive.Portal>
+        {/* No overlay - game should remain visible */}
+        <DialogPrimitive.Content
+          className={cn(
+            "fixed left-[50%] bottom-8 z-50 w-full max-w-4xl translate-x-[-50%] border-4 bg-[#add8e6] p-6 shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-2 rounded-lg",
+          )}
+          style={{ borderColor: "#4169e1" }}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => {
+            e.preventDefault();
+            handleAdvance();
+          }}
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            {speaker && (
+              <DialogTitle className="text-xl font-bold text-blue-900 font-mono mb-2">
+                {speaker}
+              </DialogTitle>
+            )}
+            <DialogDescription className="text-base text-black font-mono min-h-[60px]">
+              <span className="whitespace-pre-wrap">{displayedText}</span>
+              {showIndicator && (
+                <span className="ml-2 inline-block animate-bounce text-blue-900">
+                  →
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 text-right text-sm text-blue-800 font-mono">
+            Press Enter or Space to continue
           </div>
-        )}
-      </div>
-    </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </Dialog>
   );
 };
 

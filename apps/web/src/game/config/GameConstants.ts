@@ -97,15 +97,10 @@ export interface MenuEntry {
 }
 
 export const MENU_ENTRIES: MenuEntry[] = [
-  { id: "Pokédex", label: "Pokédex" },
-  { id: "Pokémon", label: "Pokémon" },
-  { id: "Bag", label: "Bag" },
-  { id: "Pokégear", label: "Pokégear" },
-  { id: "Red", label: "Red" },
-  { id: "Save", label: "Save" },
-  { id: "Options", label: "Options" },
-  { id: "Debug", label: "Debug" },
-  { id: "Exit", label: "Exit" },
+  { id: "codex", label: "Codex" },
+  { id: "options", label: "Options" },
+  { id: "save", label: "Save" },
+  { id: "exit", label: "Exit" },
 ];
 
 // Debug configuration

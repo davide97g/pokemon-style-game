@@ -106,7 +106,6 @@ export class AudioSystem {
         this.mainThemeMusic.setVolume(this.musicVolume);
       }
     }
-    this.updateVolumeIcon();
     // Save mute state to localStorage
     localStorage.setItem("musicMuted", this.isMuted.toString());
   }

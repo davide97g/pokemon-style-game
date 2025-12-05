@@ -20,11 +20,11 @@ export class MenuSystem {
   }
 
   private setupKeyboardControls(): void {
-    const spaceKey = this.scene.input.keyboard?.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SPACE,
-    );
     const enterKey = this.scene.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.ENTER,
+    );
+    const escapeKey = this.scene.input.keyboard?.addKey(
+      Phaser.Input.Keyboard.KeyCodes.ESC,
     );
     const leftKey = this.scene.input.keyboard?.addKey(
       Phaser.Input.Keyboard.KeyCodes.LEFT,
@@ -33,7 +33,30 @@ export class MenuSystem {
       Phaser.Input.Keyboard.KeyCodes.RIGHT,
     );
 
-    spaceKey?.on("down", () => {
+    enterKey?.on("down", () => {
+      if (this.isMenuOpen) {
+        if (this.currentMenuState === "volume") {
+          // Go back to options menu
+          this.currentMenuState = "options";
+          this.selectedMenuIndex = 0;
+          this.emitMenuUpdate();
+        } else if (this.currentMenuState === "options") {
+          // Go back to main menu
+          this.currentMenuState = "main";
+          this.selectedMenuIndex = 0;
+          this.emitMenuUpdate();
+        } else {
+          // Handle menu item selection
+          const selectedEntry = MENU_ENTRIES[this.selectedMenuIndex];
+          this.handleMenuSelect(selectedEntry.id);
+        }
+      } else {
+        // Open menu if closed
+        this.toggleMenu();
+      }
+    });
+
+    escapeKey?.on("down", () => {
       if (this.isMenuOpen) {
         if (this.currentMenuState === "volume") {
           // Go back to options menu
@@ -72,31 +95,32 @@ export class MenuSystem {
     });
 
     leftKey?.on("down", () => {
-      if (this.isMenuOpen && this.currentMenuState === "volume") {
-        this.adjustVolume(-0.1);
+      if (this.isMenuOpen) {
+        if (this.currentMenuState === "volume") {
+          this.adjustVolume(-0.1);
+        } else if (this.currentMenuState === "main") {
+          // Column navigation for main menu
+          const currentCol = this.selectedMenuIndex % 2;
+          const currentRow = Math.floor(this.selectedMenuIndex / 2);
+          if (currentCol === 1) {
+            this.selectedMenuIndex = currentRow * 2;
+            this.emitMenuUpdate();
+          }
+        }
       }
     });
 
     rightKey?.on("down", () => {
-      if (this.isMenuOpen && this.currentMenuState === "volume") {
-        this.adjustVolume(0.1);
-      }
-    });
-
-    enterKey?.on("down", () => {
       if (this.isMenuOpen) {
-        if (this.currentMenuState === "main") {
-          const selectedEntry = MENU_ENTRIES[this.selectedMenuIndex];
-          this.handleMenuSelect(selectedEntry.id);
-        } else if (this.currentMenuState === "options") {
-          const optionsEntries = ["Volume", "Back"];
-          const selectedEntry = optionsEntries[this.selectedMenuIndex];
-          if (selectedEntry === "Back") {
-            this.currentMenuState = "main";
-            this.selectedMenuIndex = 0;
+        if (this.currentMenuState === "volume") {
+          this.adjustVolume(0.1);
+        } else if (this.currentMenuState === "main") {
+          // Column navigation for main menu
+          const currentCol = this.selectedMenuIndex % 2;
+          const currentRow = Math.floor(this.selectedMenuIndex / 2);
+          if (currentCol === 0) {
+            this.selectedMenuIndex = currentRow * 2 + 1;
             this.emitMenuUpdate();
-          } else {
-            this.handleMenuSelect(selectedEntry);
           }
         }
       }
@@ -147,7 +171,7 @@ export class MenuSystem {
   }
 
   private handleMenuSelect(entry: string): void {
-    if (entry === "Options") {
+    if (entry === "options") {
       // Switch to options submenu
       this.currentMenuState = "options";
       this.selectedMenuIndex = 0;
@@ -162,24 +186,13 @@ export class MenuSystem {
       return;
     }
 
-    // For other entries, close menu and show dialog
-    this.isMenuOpen = false;
-    gameEventBus.emit("menu:close");
-    gameEventBus.emit("menu:toggle", { isOpen: false });
-
-    if (this.onMenuSelect) {
-      const speaker = entry === "Red" ? undefined : entry;
-      const dialogText = MENU_DIALOG_TEXTS[entry] || `${entry} selected.`;
-      this.onMenuSelect(dialogText, speaker);
-    }
-    const speaker = entry === "Red" ? undefined : entry;
-    const dialogText = MENU_DIALOG_TEXTS[entry] || `${entry} selected.`;
+    // Emit menu select event for React UI to handle
     gameEventBus.emit("menu:select", {
       entryId: entry,
-      text: dialogText,
-      speaker,
     });
-    gameEventBus.emit("dialog:show", { text: dialogText, speaker });
+
+    // For save, codex, and exit, let React UI handle them
+    // Don't close menu here - let React UI handle it
   }
 
   public isOpen(): boolean {
