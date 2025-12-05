@@ -657,7 +657,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Initialize dialog system
-    this.dialogSystem = new DialogSystem(this);
+    this.dialogSystem = new DialogSystem();
 
     // Initialize weather system
     this.weatherSystem = new WeatherSystem(this);
@@ -726,6 +726,8 @@ export class GameScene extends Phaser.Scene {
       if (this.dialogSystem?.isVisible()) {
         this.dialogSystem.handleAdvance();
         gameEventBus.emit("dialog:advance");
+      } else if (!this.menuSystem?.isOpen()) {
+        this.menuSystem?.toggleMenu();
       }
     });
   }

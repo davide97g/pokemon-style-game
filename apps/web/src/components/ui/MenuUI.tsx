@@ -215,7 +215,10 @@ const MenuUI = ({ isOpen, onClose }: MenuUIProps) => {
 
   const getMenuEntries = () => {
     if (menuState === "options") {
-      return ["Volume", "Back"];
+      return [
+        { id: "Volume", label: "Volume" },
+        { id: "Back", label: "Back" },
+      ];
     }
     return MENU_ENTRIES;
   };
@@ -276,13 +279,13 @@ const MenuUI = ({ isOpen, onClose }: MenuUIProps) => {
       {/* Backdrop */}
       <button
         type="button"
-        className="fixed inset-0 bg-black bg-opacity-30 z-40 border-0 p-0 cursor-pointer"
+        className="fixed inset-0 bg-black/10 z-40 border-0 p-0 cursor-pointer"
         onClick={onClose}
         aria-label="Close menu"
       />
 
       {/* Menu Panel */}
-      <div className="fixed top-4 right-4 w-64 bg-gray-300 bg-opacity-85 border-2 border-gray-500 rounded z-50">
+      <div className="fixed top-4 right-4 w-64 bg-gray-300 bg-opacity-85 border-2 border-gray-500 rounded z-50 shadow-lg">
         {menuState === "volume" ? (
           <div className="p-4">
             <h3 className="text-white text-base font-mono mb-4">Volume</h3>

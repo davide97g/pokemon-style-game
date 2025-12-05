@@ -1,6 +1,5 @@
 import Phaser from "phaser";
 import { MENU_ENTRIES } from "../config/GameConstants";
-import { MENU_DIALOG_TEXTS } from "../config/MenuConfig";
 import type { GameScene } from "../GameScene";
 import { gameEventBus } from "../utils/GameEventBus";
 
@@ -10,7 +9,7 @@ export class MenuSystem {
   private scene: Phaser.Scene;
   private isMenuOpen = false;
   private selectedMenuIndex = 0;
-  private onMenuSelect?: (text: string, speaker?: string) => void;
+  protected onMenuSelect?: (text: string, speaker?: string) => void;
   private currentMenuState: MenuState = "main";
   private onVolumeChange?: (volume: number) => void;
 
@@ -34,25 +33,25 @@ export class MenuSystem {
     );
 
     enterKey?.on("down", () => {
-      if (this.isMenuOpen) {
-        if (this.currentMenuState === "volume") {
-          // Go back to options menu
-          this.currentMenuState = "options";
-          this.selectedMenuIndex = 0;
-          this.emitMenuUpdate();
-        } else if (this.currentMenuState === "options") {
-          // Go back to main menu
-          this.currentMenuState = "main";
-          this.selectedMenuIndex = 0;
-          this.emitMenuUpdate();
-        } else {
-          // Handle menu item selection
-          const selectedEntry = MENU_ENTRIES[this.selectedMenuIndex];
-          this.handleMenuSelect(selectedEntry.id);
-        }
+      if (!this.isMenuOpen) {
+        // Menu opening is handled by GameScene
+        return;
+      }
+
+      if (this.currentMenuState === "volume") {
+        // Go back to options menu
+        this.currentMenuState = "options";
+        this.selectedMenuIndex = 0;
+        this.emitMenuUpdate();
+      } else if (this.currentMenuState === "options") {
+        // Go back to main menu
+        this.currentMenuState = "main";
+        this.selectedMenuIndex = 0;
+        this.emitMenuUpdate();
       } else {
-        // Open menu if closed
-        this.toggleMenu();
+        // Handle menu item selection
+        const selectedEntry = MENU_ENTRIES[this.selectedMenuIndex];
+        this.handleMenuSelect(selectedEntry.id);
       }
     });
 

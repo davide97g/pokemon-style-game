@@ -124,11 +124,14 @@ const DialogUI = ({ isVisible, text, speaker, onClose }: DialogUIProps) => {
           onInteractOutside={(e) => e.preventDefault()}
         >
           <DialogHeader>
-            {speaker && (
-              <DialogTitle className="text-xl font-bold text-blue-900 font-mono mb-2">
-                {speaker}
-              </DialogTitle>
-            )}
+            <DialogTitle
+              className={cn(
+                "text-xl font-bold text-blue-900 font-mono mb-2",
+                !speaker && "sr-only",
+              )}
+            >
+              {speaker || "Dialog"}
+            </DialogTitle>
             <DialogDescription className="text-base text-black font-mono min-h-[60px]">
               <span className="whitespace-pre-wrap">{displayedText}</span>
               {showIndicator && (

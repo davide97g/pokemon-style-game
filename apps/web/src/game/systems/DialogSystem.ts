@@ -1,13 +1,10 @@
-import type Phaser from "phaser";
 import { gameEventBus } from "../utils/GameEventBus";
 
 export class DialogSystem {
-  private scene: Phaser.Scene;
   private isDialogVisible = false;
   private hideUnsubscribe?: () => void;
 
-  constructor(scene: Phaser.Scene) {
-    this.scene = scene;
+  constructor() {
     // Listen for dialog hide events to sync state
     this.hideUnsubscribe = gameEventBus.on("dialog:hide", () => {
       this.isDialogVisible = false;
