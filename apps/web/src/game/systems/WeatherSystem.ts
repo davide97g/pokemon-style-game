@@ -10,6 +10,13 @@ import { fetchWeatherData, formatTime } from "../utils/WeatherUtils";
 export class WeatherSystem {
   private scene: Phaser.Scene;
   private weatherWidget: Phaser.GameObjects.Container | null = null;
+  private isExpanded: boolean = false;
+  private isLocationDenied: boolean = false;
+  private fullWidgetWidth: number = 200;
+  private fullWidgetHeight: number = 260;
+  private smallWidgetWidth: number = 100;
+  private smallWidgetHeight: number = 60;
+  private collapseTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -33,6 +40,7 @@ export class WeatherSystem {
         let errorMessage = "Unable to get location";
         if (err.code === 1) {
           errorMessage = "Location access denied";
+          this.isLocationDenied = true;
         } else if (err.code === 2) {
           errorMessage = "Location unavailable";
         } else if (err.code === 3) {
@@ -49,44 +57,74 @@ export class WeatherSystem {
   ): void {
     const width = this.scene.cameras.main.width;
     const padding = 12;
-    const widgetWidth = 200;
-    const widgetHeight = 260;
+    const borderRadius = 16;
+
+    // Determine widget size based on state
+    let widgetWidth: number;
+    let widgetHeight: number;
+
+    if (this.isLocationDenied && error) {
+      // Small widget for location denied state
+      widgetWidth = this.smallWidgetWidth;
+      widgetHeight = this.smallWidgetHeight;
+    } else if (!this.isExpanded) {
+      // Small widget for collapsed state
+      widgetWidth = this.smallWidgetWidth;
+      widgetHeight = this.smallWidgetHeight;
+    } else {
+      // Full widget for expanded state
+      widgetWidth = this.fullWidgetWidth;
+      widgetHeight = this.fullWidgetHeight;
+    }
+
     const x = width - widgetWidth - padding;
     const y = padding;
-    const borderRadius = 16;
 
     const container = this.scene.add.container(x, y);
     container.setScrollFactor(0);
     container.setDepth(30);
 
-    // Create rounded rectangle background using graphics
+    // Create rounded rectangle background using graphics with 50% transparency
     const bg = this.scene.add.graphics();
-    bg.fillStyle(0xffffff, 0.9);
+    bg.fillStyle(0xffffff, 0.5);
     bg.lineStyle(2, 0x000000, 0.3);
     bg.fillRoundedRect(0, 0, widgetWidth, widgetHeight, borderRadius);
     bg.strokeRoundedRect(0, 0, widgetWidth, widgetHeight, borderRadius);
     container.add(bg);
 
     if (error || !weather) {
-      const errorText = this.scene.add.text(
-        widgetWidth / 2,
-        widgetHeight / 2,
-        error || "Unable to fetch weather",
-        {
-          font: "11px monospace",
-          color: "#ff0000",
-          align: "center",
-          wordWrap: { width: widgetWidth - 20 },
-          resolution: 1,
-        },
-      );
-      errorText.setOrigin(0.5);
-      container.add(errorText);
+      if (this.isLocationDenied && error === "Location access denied") {
+        // Create small widget with refresh icon for location denied
+        this.renderLocationDeniedWidget(container, widgetWidth, widgetHeight);
+      } else {
+        const errorText = this.scene.add.text(
+          widgetWidth / 2,
+          widgetHeight / 2,
+          error || "Unable to fetch weather",
+          {
+            font: "11px monospace",
+            color: "#ff0000",
+            align: "center",
+            wordWrap: { width: widgetWidth - 20 },
+            resolution: 1,
+          },
+        );
+        errorText.setOrigin(0.5);
+        container.add(errorText);
+      }
       this.weatherWidget = container;
       return;
     }
 
-    this.renderWeatherContent(container, weather, widgetWidth);
+    // Render content based on expanded state
+    if (this.isExpanded) {
+      this.renderWeatherContent(container, weather, widgetWidth);
+    } else {
+      this.renderSmallWeatherContent(container, weather, widgetWidth);
+    }
+
+    // Add hover interaction for expanding/collapsing
+    this.setupHoverInteraction(container, weather);
 
     this.weatherWidget = container;
 
@@ -108,6 +146,293 @@ export class WeatherSystem {
         );
       }
     }, WEATHER_UPDATE_INTERVAL);
+  }
+
+  private renderLocationDeniedWidget(
+    container: Phaser.GameObjects.Container,
+    widgetWidth: number,
+    widgetHeight: number,
+  ): void {
+    const textStyle = {
+      resolution: 1,
+      fontFamily: "monospace",
+    };
+
+    // Error message
+    const errorText = this.scene.add.text(
+      widgetWidth / 2,
+      15,
+      "Location denied",
+      {
+        font: "9px monospace",
+        color: "#ff0000",
+        align: "center",
+        ...textStyle,
+      },
+    );
+    errorText.setOrigin(0.5);
+    container.add(errorText);
+
+    // Refresh icon (↻)
+    const refreshIcon = this.scene.add.text(
+      widgetWidth / 2,
+      widgetHeight - 20,
+      "↻",
+      {
+        font: "bold 16px monospace",
+        color: "#000000",
+        align: "center",
+        ...textStyle,
+      },
+    );
+    refreshIcon.setOrigin(0.5);
+    refreshIcon.setInteractive({ useHandCursor: true });
+
+    // Add hover effect
+    refreshIcon.on("pointerover", () => {
+      refreshIcon.setTint(0x0066ff);
+    });
+    refreshIcon.on("pointerout", () => {
+      refreshIcon.clearTint();
+    });
+
+    // Add click handler to retry permission
+    refreshIcon.on("pointerdown", () => {
+      this.retryLocationPermission();
+    });
+
+    container.add(refreshIcon);
+  }
+
+  private retryLocationPermission(): void {
+    if (!navigator.geolocation) return;
+
+    this.isLocationDenied = false;
+    this.isExpanded = false;
+
+    // Clear existing widget
+    if (this.weatherWidget) {
+      this.weatherWidget.destroy();
+      this.weatherWidget = null;
+    }
+
+    // Retry location request
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        const weather = await fetchWeatherData(lat, lon);
+        this.createWeatherWidget(weather, null);
+      },
+      (err) => {
+        let errorMessage = "Unable to get location";
+        if (err.code === 1) {
+          errorMessage = "Location access denied";
+          this.isLocationDenied = true;
+        } else if (err.code === 2) {
+          errorMessage = "Location unavailable";
+        } else if (err.code === 3) {
+          errorMessage = "Location request timed out";
+        }
+        this.createWeatherWidget(null, errorMessage);
+      },
+    );
+  }
+
+  private renderSmallWeatherContent(
+    container: Phaser.GameObjects.Container,
+    weather: WeatherData,
+    _widgetWidth: number,
+  ): void {
+    const weatherIcon = getWeatherIcon(weather.weathercode);
+
+    const textStyle = {
+      resolution: 1,
+      fontFamily: "monospace",
+    };
+
+    // Icon
+    const iconText = this.scene.add.text(10, 10, weatherIcon, {
+      font: "20px monospace",
+      color: "#000000",
+      ...textStyle,
+    });
+    container.add(iconText);
+
+    // Temperature (essential info only)
+    const tempText = this.scene.add.text(
+      35,
+      8,
+      `${weather.temperature.toFixed(1)}°C`,
+      {
+        font: "bold 14px monospace",
+        color: "#000000",
+        ...textStyle,
+      },
+    );
+    container.add(tempText);
+  }
+
+  private setupHoverInteraction(
+    container: Phaser.GameObjects.Container,
+    weather: WeatherData | null,
+  ): void {
+    if (!weather) return;
+
+    // Remove existing event listeners to prevent duplicates
+    container.removeAllListeners("pointerover");
+    container.removeAllListeners("pointerout");
+
+    // Determine current widget size
+    const currentWidth = this.isExpanded
+      ? this.fullWidgetWidth
+      : this.smallWidgetWidth;
+    const currentHeight = this.isExpanded
+      ? this.fullWidgetHeight
+      : this.smallWidgetHeight;
+
+    // Make container interactive
+    container.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, currentWidth, currentHeight),
+      Phaser.Geom.Rectangle.Contains,
+    );
+
+    container.on("pointerover", () => {
+      // Cancel any pending collapse
+      if (this.collapseTimer) {
+        this.collapseTimer.remove();
+        this.collapseTimer = null;
+      }
+
+      if (!this.isExpanded) {
+        this.isExpanded = true;
+        this.expandWidget(weather);
+      }
+    });
+
+    container.on("pointerout", () => {
+      if (this.isExpanded) {
+        // Add a small delay before collapsing to prevent flickering
+        // This gives time for the mouse to move into the expanded area
+        this.collapseTimer = this.scene.time.delayedCall(200, () => {
+          // Double-check the mouse is still outside before collapsing
+          if (this.isExpanded && this.weatherWidget) {
+            const pointer = this.scene.input.activePointer;
+            // Since widget has scrollFactor(0), use screen coordinates
+            const widgetX = this.weatherWidget.x;
+            const widgetY = this.weatherWidget.y;
+            const widgetBounds = new Phaser.Geom.Rectangle(
+              widgetX,
+              widgetY,
+              this.fullWidgetWidth,
+              this.fullWidgetHeight,
+            );
+
+            // Check if pointer is outside the expanded widget bounds
+            // Use screen coordinates since widget is fixed to screen
+            const pointerX = pointer.x;
+            const pointerY = pointer.y;
+
+            if (!widgetBounds.contains(pointerX, pointerY)) {
+              this.isExpanded = false;
+              this.collapseWidget(weather);
+            }
+          }
+          this.collapseTimer = null;
+        });
+      }
+    });
+  }
+
+  private expandWidget(weather: WeatherData): void {
+    if (!this.weatherWidget) return;
+
+    const width = this.scene.cameras.main.width;
+    const padding = 12;
+    const widgetWidth = this.fullWidgetWidth;
+    const widgetHeight = this.fullWidgetHeight;
+    const x = width - widgetWidth - padding;
+    const y = padding;
+
+    // Update position
+    this.weatherWidget.setPosition(x, y);
+
+    // IMMEDIATELY update interaction area to full size BEFORE rendering
+    // This prevents the mouse from leaving the interactive area during expansion
+    this.weatherWidget.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, widgetWidth, widgetHeight),
+      Phaser.Geom.Rectangle.Contains,
+    );
+
+    // Clear existing content
+    const children = this.weatherWidget.list.slice(1);
+    children.forEach((child) => {
+      if (
+        child instanceof Phaser.GameObjects.Text ||
+        child instanceof Phaser.GameObjects.Graphics
+      ) {
+        child.destroy();
+      }
+    });
+
+    // Update background
+    const bg = this.weatherWidget.list[0] as Phaser.GameObjects.Graphics;
+    bg.clear();
+    bg.fillStyle(0xffffff, 0.5);
+    bg.lineStyle(2, 0x000000, 0.3);
+    bg.fillRoundedRect(0, 0, widgetWidth, widgetHeight, 16);
+    bg.strokeRoundedRect(0, 0, widgetWidth, widgetHeight, 16);
+
+    // Render full content
+    this.renderWeatherContent(this.weatherWidget, weather, widgetWidth);
+
+    // Re-setup hover interaction with updated size
+    this.setupHoverInteraction(this.weatherWidget, weather);
+  }
+
+  private collapseWidget(weather: WeatherData): void {
+    if (!this.weatherWidget) return;
+
+    const width = this.scene.cameras.main.width;
+    const padding = 12;
+    const widgetWidth = this.smallWidgetWidth;
+    const widgetHeight = this.smallWidgetHeight;
+    const x = width - widgetWidth - padding;
+    const y = padding;
+
+    // Update position
+    this.weatherWidget.setPosition(x, y);
+
+    // IMMEDIATELY update interaction area to small size BEFORE rendering
+    this.weatherWidget.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, widgetWidth, widgetHeight),
+      Phaser.Geom.Rectangle.Contains,
+    );
+
+    // Clear existing content
+    const children = this.weatherWidget.list.slice(1);
+    children.forEach((child) => {
+      if (
+        child instanceof Phaser.GameObjects.Text ||
+        child instanceof Phaser.GameObjects.Graphics
+      ) {
+        child.destroy();
+      }
+    });
+
+    // Update background
+    const bg = this.weatherWidget.list[0] as Phaser.GameObjects.Graphics;
+    bg.clear();
+    bg.fillStyle(0xffffff, 0.5);
+    bg.lineStyle(2, 0x000000, 0.3);
+    bg.fillRoundedRect(0, 0, widgetWidth, widgetHeight, 16);
+    bg.strokeRoundedRect(0, 0, widgetWidth, widgetHeight, 16);
+
+    // Render small content
+    this.renderSmallWeatherContent(this.weatherWidget, weather, widgetWidth);
+
+    // Re-setup hover interaction with updated size
+    this.setupHoverInteraction(this.weatherWidget, weather);
   }
 
   private renderWeatherContent(
@@ -325,7 +650,23 @@ export class WeatherSystem {
       }
     });
 
-    const widgetWidth = 200;
-    this.renderWeatherContent(this.weatherWidget, weather, widgetWidth);
+    // Render content based on current expanded state
+    if (this.isExpanded) {
+      this.renderWeatherContent(
+        this.weatherWidget,
+        weather,
+        this.fullWidgetWidth,
+      );
+      // Re-setup hover interaction
+      this.setupHoverInteraction(this.weatherWidget, weather);
+    } else {
+      this.renderSmallWeatherContent(
+        this.weatherWidget,
+        weather,
+        this.smallWidgetWidth,
+      );
+      // Re-setup hover interaction
+      this.setupHoverInteraction(this.weatherWidget, weather);
+    }
   }
 }
