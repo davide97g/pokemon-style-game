@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 import { DIALOG_TYPING_SPEED } from "../config/GameConstants";
+import { gameEventBus } from "../utils/GameEventBus";
 import { splitTextIntoLines } from "../utils/TextUtils";
 
 export class DialogSystem {
@@ -67,6 +68,8 @@ export class DialogSystem {
   }
 
   public showDialog(text: string, speaker?: string): void {
+    // Emit event for UI
+    gameEventBus.emit("dialog:show", { text, speaker });
     if (this.dialogTypingTimer) {
       clearTimeout(this.dialogTypingTimer);
       this.dialogTypingTimer = null;
@@ -223,6 +226,8 @@ export class DialogSystem {
     if (this.dialogIndicator) {
       this.dialogIndicator.setVisible(false);
     }
+    // Emit event for UI
+    gameEventBus.emit("dialog:hide");
   }
 
   public isVisible(): boolean {

@@ -27,6 +27,7 @@ import { MenuSystem } from "./systems/MenuSystem";
 import { TileManagementSystem } from "./systems/TileManagementSystem";
 import { WeatherSystem } from "./systems/WeatherSystem";
 import { debugLog, debugWarn } from "./utils/DebugUtils";
+import { gameEventBus } from "./utils/GameEventBus";
 import {
   createVirtualCursorKeys,
   isMobileDevice,
@@ -236,10 +237,9 @@ export class GameScene extends Phaser.Scene {
     this.audioSystem.createVolumeToggleIcon();
 
     // Initialize inventory system
-    this.inventorySystem = new InventorySystem(this);
+    this.inventorySystem = new InventorySystem();
     this.inventorySystem.init();
-    this.inventorySystem.createInventoryUI();
-    this.inventorySystem.createInventoryRecap();
+    // UI is now handled by React components
     this.inventorySystem.setOnInventoryChange(() => {
       this.scheduleSave();
     });
@@ -686,6 +686,7 @@ export class GameScene extends Phaser.Scene {
       if (this.chatSystem?.isOpen()) return;
       if (this.dialogSystem?.isVisible()) {
         this.dialogSystem.handleAdvance();
+        gameEventBus.emit("dialog:advance");
       } else if (!this.menuSystem?.isOpen()) {
         this.menuSystem?.toggleMenu();
       }
@@ -695,6 +696,7 @@ export class GameScene extends Phaser.Scene {
       if (this.chatSystem?.isOpen()) return;
       if (this.dialogSystem?.isVisible()) {
         this.dialogSystem.handleAdvance();
+        gameEventBus.emit("dialog:advance");
       }
     });
   }

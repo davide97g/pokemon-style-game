@@ -9,6 +9,7 @@ import {
   COLLECTION_PROXIMITY_DISTANCE,
 } from "../config/GameConstants";
 import { debugLog, debugWarn } from "../utils/DebugUtils";
+import { gameEventBus } from "../utils/GameEventBus";
 import { getTileProperty } from "../utils/TileUtils";
 
 export class CollectionSystem {
@@ -177,7 +178,8 @@ export class CollectionSystem {
       this.onItemCollected(itemId, 1);
     }
 
-    this.showCollectionNotification(itemId, 1);
+    // Emit event for UI notification
+    gameEventBus.emit("notification:item-collected", { itemId, quantity: 1 });
     if (this.onPlayHitSound) {
       this.onPlayHitSound();
     }
@@ -359,147 +361,6 @@ export class CollectionSystem {
       progressBar.destroy();
       this.tileProgressBars.delete(tileKey);
     }
-  }
-
-  private showCollectionNotification(itemId: string, quantity: number): void {
-    const item = this.inventoryItems.get(itemId);
-    if (!item) return;
-
-    const padding = 16;
-    const notificationWidth = 200;
-    const notificationHeight = 60;
-    const itemImageSize = 40;
-    const spacing = 8; // Space between notifications
-
-    // Calculate Y position based on existing notifications
-    const startY = padding + notificationHeight / 2;
-    const notificationY =
-      startY +
-      this.collectionNotifications.length * (notificationHeight + spacing);
-
-    // Create notification container
-    const notificationContainer = this.scene.add.container(
-      padding + notificationWidth / 2,
-      notificationY,
-    );
-    notificationContainer.setScrollFactor(0);
-    notificationContainer.setDepth(200);
-
-    // Shadow background (darker, offset) with rounded corners
-    const shadowOffset = 3;
-    const radius = 8;
-    const shadowGraphics = this.scene.add.graphics();
-    shadowGraphics.fillStyle(0x000000, 0.6);
-    shadowGraphics.fillRoundedRect(
-      shadowOffset - notificationWidth / 2,
-      shadowOffset - notificationHeight / 2,
-      notificationWidth,
-      notificationHeight,
-      radius,
-    );
-    notificationContainer.add(shadowGraphics);
-
-    // Main background with rounded corners
-    const backgroundGraphics = this.scene.add.graphics();
-    backgroundGraphics.fillStyle(0x000000, 0.5);
-    backgroundGraphics.lineStyle(2, 0xffffff, 0.3);
-    backgroundGraphics.fillRoundedRect(
-      -notificationWidth / 2,
-      -notificationHeight / 2,
-      notificationWidth,
-      notificationHeight,
-      radius,
-    );
-    backgroundGraphics.strokeRoundedRect(
-      -notificationWidth / 2,
-      -notificationHeight / 2,
-      notificationWidth,
-      notificationHeight,
-      radius,
-    );
-    notificationContainer.add(backgroundGraphics);
-
-    // Item image
-    const itemImageX = -notificationWidth / 2 + itemImageSize / 2 + 12;
-    if (this.scene.textures.exists(itemId)) {
-      const itemImage = this.scene.add.image(itemImageX, 0, itemId);
-      itemImage.setDisplaySize(itemImageSize, itemImageSize);
-      notificationContainer.add(itemImage);
-    } else {
-      const itemImage = this.scene.add.rectangle(
-        itemImageX,
-        0,
-        itemImageSize,
-        itemImageSize,
-        item.color,
-        1,
-      );
-      itemImage.setStrokeStyle(2, 0xffffff, 0.3);
-      notificationContainer.add(itemImage);
-    }
-
-    // Item name and quantity text
-    const textX = itemImageX + itemImageSize / 2 + 12;
-    const itemText = this.scene.add.text(textX, -8, item.name, {
-      fontFamily: "monospace",
-      fontSize: "16px",
-      color: "#ffffff",
-      stroke: "#000000",
-      strokeThickness: 2,
-    });
-    itemText.setOrigin(0, 0.5);
-    notificationContainer.add(itemText);
-
-    const quantityText = this.scene.add.text(textX, 8, `x${quantity}`, {
-      fontFamily: "monospace",
-      fontSize: "14px",
-      color: "#cccccc",
-      stroke: "#000000",
-      strokeThickness: 2,
-    });
-    quantityText.setOrigin(0, 0.5);
-    notificationContainer.add(quantityText);
-
-    // Add to notifications array
-    this.collectionNotifications.push(notificationContainer);
-
-    // Remove notification after 1 second
-    this.scene.time.delayedCall(1000, () => {
-      this.removeCollectionNotification(notificationContainer);
-    });
-  }
-
-  private removeCollectionNotification(
-    notification: Phaser.GameObjects.Container,
-  ): void {
-    const index = this.collectionNotifications.indexOf(notification);
-    if (index === -1) return;
-
-    // Remove from array
-    this.collectionNotifications.splice(index, 1);
-
-    // Destroy the notification
-    notification.destroy();
-
-    // Update positions of remaining notifications
-    this.updateNotificationPositions();
-  }
-
-  private updateNotificationPositions(): void {
-    const padding = 16;
-    const notificationHeight = 60;
-    const spacing = 8;
-    const startY = padding + notificationHeight / 2;
-
-    this.collectionNotifications.forEach((notification, index) => {
-      const newY = startY + index * (notificationHeight + spacing);
-      this.scene.tweens.add({
-        targets: notification,
-        y: newY,
-        duration: 200,
-        ease: "Power2",
-      });
-    });
   }
 
   public getTileCollectionCounts(): Record<string, number> {

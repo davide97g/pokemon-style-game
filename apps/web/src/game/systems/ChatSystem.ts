@@ -5,6 +5,7 @@ import {
   CHAT_WIDTH,
   STATUE_PROXIMITY_DISTANCE,
 } from "../config/GameConstants";
+import { gameEventBus } from "../utils/GameEventBus";
 
 interface ChatMessage {
   container: Phaser.GameObjects.Container;
@@ -282,6 +283,11 @@ export class ChatSystem {
     if (this.isNearStatue !== nearStatue) {
       this.isNearStatue = nearStatue;
       this.updateChatIconVisibility();
+      if (nearStatue) {
+        gameEventBus.emit("chat:near-statue");
+      } else {
+        gameEventBus.emit("chat:not-near-statue");
+      }
     }
   }
 
@@ -317,6 +323,7 @@ export class ChatSystem {
     if (this.chatIconContainer) {
       this.chatIconContainer.setVisible(false);
     }
+    gameEventBus.emit("chat:open");
 
     const placeholder = this.chatDialogueContainer?.list.find(
       (child) => child.name === "placeholder",
@@ -339,6 +346,7 @@ export class ChatSystem {
 
     this.chatInputText = "";
     this.updateChatInput("");
+    gameEventBus.emit("chat:close");
   }
 
   private updateChatInput(text: string): void {
