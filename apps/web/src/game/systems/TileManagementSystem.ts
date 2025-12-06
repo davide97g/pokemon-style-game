@@ -3,6 +3,7 @@
  */
 
 import type Phaser from "phaser";
+import type { LootItem } from "../config/AssetPaths";
 import { TREE_TILE_GID, WOOD_REQUIRED_FOR_TREE } from "../config/GameConstants";
 import { debugLog } from "../utils/DebugUtils";
 import { getTileProperty } from "../utils/TileUtils";
@@ -25,6 +26,7 @@ export class TileManagementSystem {
   private onRemoveItem?: (itemId: string, quantity: number) => boolean;
   private onPlayDestroySound?: () => void;
   private onSaveGame?: () => void;
+  private onDisperseLoot?: (loot: LootItem[], x: number, y: number) => void;
 
   // Track tiles that were placed/modified by the player
   private placedTiles: Map<
@@ -73,6 +75,12 @@ export class TileManagementSystem {
 
   public setOnSaveGame(callback: () => void): void {
     this.onSaveGame = callback;
+  }
+
+  public setOnDisperseLoot(
+    callback: (loot: LootItem[], x: number, y: number) => void,
+  ): void {
+    this.onDisperseLoot = callback;
   }
 
   /**
@@ -442,10 +450,72 @@ export class TileManagementSystem {
 
     debugLog(`=== hideTile finished ===\n`);
 
+    // Get loot from tile properties or default based on tile type
+    const loot = this.getTileLoot(tileX, tileY);
+
+    // Calculate world position for loot dispersion (center of tile)
+    if (this.gameMap && loot.length > 0) {
+      const tileWidth = this.gameMap.tileWidth || 32;
+      const tileHeight = this.gameMap.tileHeight || 32;
+      const worldX = tileX * tileWidth + tileWidth / 2;
+      const worldY = tileY * tileHeight + tileHeight / 2;
+
+      // Disperse loot items
+      if (this.onDisperseLoot) {
+        this.onDisperseLoot(loot, worldX, worldY);
+      }
+    }
+
     // Play destroy sound when item is removed from screen
     if (this.onPlayDestroySound) {
       this.onPlayDestroySound();
     }
+  }
+
+  /**
+   * Get loot items from a tile based on properties or tile type
+   */
+  private getTileLoot(tileX: number, tileY: number): LootItem[] {
+    if (!this.worldLayer && !this.aboveLayer) return [];
+
+    // Check world layer first
+    let tile = this.worldLayer?.getTileAt(tileX, tileY);
+    if (!tile || tile.index === null || tile.index === -1) {
+      // Check above layer
+      tile = this.aboveLayer?.getTileAt(tileX, tileY);
+    }
+
+    if (!tile || tile.index === null || tile.index === -1) {
+      return [];
+    }
+
+    // Check for explicit loot property (JSON format: [{"itemId":"wood","quantity":5}])
+    const lootProperty = getTileProperty(tile, "loot");
+    if (lootProperty) {
+      try {
+        const loot =
+          typeof lootProperty === "string"
+            ? JSON.parse(lootProperty)
+            : lootProperty;
+        if (Array.isArray(loot)) {
+          return loot as LootItem[];
+        }
+      } catch (e) {
+        debugLog(`Failed to parse loot property: ${lootProperty}`, e);
+      }
+    }
+
+    // Default loot based on tile type (e.g., trees drop wood)
+    // Check if this is a tree tile by GID or group property
+    const tileGID = tile.index + (tile.tileset?.firstgid || 1);
+    const groupProperty = getTileProperty(tile, "group");
+
+    // If it's a tree (based on GID or group), drop wood
+    if (tileGID === TREE_TILE_GID || groupProperty === "tree") {
+      return [{ itemId: "wood", quantity: 5 }];
+    }
+
+    return [];
   }
 
   /**

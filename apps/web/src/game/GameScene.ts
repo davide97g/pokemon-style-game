@@ -25,6 +25,7 @@ import { CollectionSystem } from "./systems/CollectionSystem";
 import { DayNightSystem } from "./systems/DayNightSystem";
 import { DialogSystem } from "./systems/DialogSystem";
 import { InventorySystem } from "./systems/InventorySystem";
+import { LootDispersionSystem } from "./systems/LootDispersionSystem";
 import { MenuSystem } from "./systems/MenuSystem";
 import { TileManagementSystem } from "./systems/TileManagementSystem";
 import { WeatherEffectsSystem } from "./systems/WeatherEffectsSystem";
@@ -57,6 +58,7 @@ export class GameScene extends Phaser.Scene {
   private animalSystem?: AnimalSystem;
   private dayNightSystem?: DayNightSystem;
   private weatherEffectsSystem?: WeatherEffectsSystem;
+  private lootDispersionSystem?: LootDispersionSystem;
 
   // Tile info hover system
   private hoveredTileInfo: {
@@ -103,6 +105,7 @@ export class GameScene extends Phaser.Scene {
     this.audioSystem?.shutdown();
     this.dayNightSystem?.shutdown();
     this.weatherEffectsSystem?.shutdown();
+    this.lootDispersionSystem?.shutdown();
 
     // Clean up tile info popup
     if (this.tileInfoPopup) {
@@ -293,6 +296,15 @@ export class GameScene extends Phaser.Scene {
       this.audioSystem?.playHitSound();
     });
 
+    // Initialize loot dispersion system
+    this.lootDispersionSystem = new LootDispersionSystem(this);
+    this.lootDispersionSystem.setPlayer(this.player);
+    this.lootDispersionSystem.setOnItemCollected((itemId, quantity) => {
+      if (this.inventorySystem) {
+        this.inventorySystem.addItem(itemId, quantity);
+      }
+    });
+
     // Initialize tile management system
     this.tileManagementSystem = new TileManagementSystem(this);
     this.tileManagementSystem.setGameMap(this.gameMap);
@@ -310,6 +322,9 @@ export class GameScene extends Phaser.Scene {
     });
     this.tileManagementSystem.setOnSaveGame(() => {
       this.saveGameState();
+    });
+    this.tileManagementSystem.setOnDisperseLoot((loot, x, y) => {
+      this.lootDispersionSystem?.disperseLoot(loot, x, y);
     });
     this.tileManagementSystem.initializeTileGroups();
 
@@ -334,26 +349,51 @@ export class GameScene extends Phaser.Scene {
     this.animalSystem = new AnimalSystem(this);
     this.animalSystem.init(this.gameMap, this.worldLayer, this.player);
     this.animalSystem.createAllAnimations();
-    this.animalSystem.setOnAnimalKilled(() => {
-      // When animal dies, add bone to inventory
+    this.animalSystem.setOnAnimalKilled((loot) => {
+      // Fallback: When animal dies, add all loot items to inventory (if dispersion not working)
       if (this.inventorySystem) {
-        this.inventorySystem.addItem("bone", 1);
+        loot.forEach((lootItem) => {
+          this.inventorySystem?.addItem(lootItem.itemId, lootItem.quantity);
+        });
       }
+    });
+    this.animalSystem.setOnDisperseLoot((loot, x, y) => {
+      this.lootDispersionSystem?.disperseLoot(loot, x, y);
     });
 
     // Spawn animals - currently only bunnies
     this.animalSystem.spawnAnimals([
       {
         animalKey: "miniBunny",
-        quantity: 30,
+        quantity: 100,
       },
       {
         animalKey: "miniBoar",
-        quantity: 100,
+        quantity: 40,
       },
       {
         animalKey: "miniDeer1",
-        quantity: 100,
+        quantity: 30,
+      },
+      {
+        animalKey: "miniDeer2",
+        quantity: 30,
+      },
+      {
+        animalKey: "miniBear",
+        quantity: 10,
+      },
+      {
+        animalKey: "miniBird",
+        quantity: 25,
+      },
+      {
+        animalKey: "miniFox",
+        quantity: 10,
+      },
+      {
+        animalKey: "miniWolf",
+        quantity: 10,
       },
     ]);
   }
@@ -949,6 +989,9 @@ export class GameScene extends Phaser.Scene {
 
     // Update all animals movement
     this.animalSystem?.update();
+
+    // Update loot dispersion system
+    this.lootDispersionSystem?.update();
 
     // Update day/night system overlay
     this.dayNightSystem?.update();

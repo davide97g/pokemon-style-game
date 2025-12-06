@@ -38,6 +38,7 @@ export const ITEM_TYPES: InventoryItem[] = [
   { id: "cactus", name: "Cactus", color: 0x52be80, quantity: 0 },
   { id: "stone_dark", name: "Dark Stone", color: 0x34495e, quantity: 0 },
   { id: "bone", name: "Bone", color: 0xecf0f1, quantity: 0 },
+  { id: "meat", name: "Meat", color: 0x8b0000, quantity: 0 },
   { id: "wood", name: "Wood", color: 0x8b4513, quantity: 0 },
   { id: "rope", name: "Rope", color: 0x8b6914, quantity: 0 },
   { id: "pebble", name: "Pebble", color: 0x95a5a6, quantity: 0 },

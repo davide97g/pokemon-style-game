@@ -3,7 +3,11 @@
  */
 
 import Phaser from "phaser";
-import { ANIMAL_CONFIGS, type AnimalConfig } from "../config/AssetPaths";
+import {
+  ANIMAL_CONFIGS,
+  type AnimalConfig,
+  type LootItem,
+} from "../config/AssetPaths";
 import type { Player } from "../entities/Player";
 import { gameEventBus } from "../utils/GameEventBus";
 
@@ -109,7 +113,8 @@ export class AnimalSystem {
   private readonly COLLISION_BODY_SCALE = 0.35; // Collision body size as percentage of sprite (35% = tighter collision)
 
   // Callbacks
-  private onAnimalKilled?: (animalKey: string) => void; // Called when animal dies (to add items to inventory)
+  private onAnimalKilled?: (loot: LootItem[]) => void; // Called when animal dies (to add items to inventory)
+  private onDisperseLoot?: (loot: LootItem[], x: number, y: number) => void; // Called to disperse loot items
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -163,8 +168,17 @@ export class AnimalSystem {
   /**
    * Set callback for when animal is killed
    */
-  public setOnAnimalKilled(callback: (animalKey: string) => void): void {
+  public setOnAnimalKilled(callback: (loot: LootItem[]) => void): void {
     this.onAnimalKilled = callback;
+  }
+
+  /**
+   * Set callback for dispersing loot items
+   */
+  public setOnDisperseLoot(
+    callback: (loot: LootItem[], x: number, y: number) => void,
+  ): void {
+    this.onDisperseLoot = callback;
   }
 
   /**
@@ -557,16 +571,30 @@ export class AnimalSystem {
 
     // Remove animal after delay
     this.scene.time.delayedCall(this.DEATH_DISAPPEAR_DELAY, () => {
-      // Callback to add items to inventory
-      if (this.onAnimalKilled) {
-        this.onAnimalKilled(animalData.config.key);
-      }
+      // Get loot from config or default to bone
+      const loot = animalData.config.loot || [{ itemId: "bone", quantity: 1 }];
 
-      // Emit notification for bone collection
-      gameEventBus.emit("notification:item-collected", {
-        itemId: "bone",
-        quantity: 1,
-      });
+      // Get animal position for loot dispersion
+      const animalX = animalData.sprite.x;
+      const animalY = animalData.sprite.y;
+
+      // Disperse loot items around the animal position
+      if (this.onDisperseLoot) {
+        this.onDisperseLoot(loot, animalX, animalY);
+      } else {
+        // Fallback: directly add to inventory if dispersion system not available
+        if (this.onAnimalKilled) {
+          this.onAnimalKilled(loot);
+        }
+
+        // Emit notifications for all loot items
+        loot.forEach((lootItem) => {
+          gameEventBus.emit("notification:item-collected", {
+            itemId: lootItem.itemId,
+            quantity: lootItem.quantity,
+          });
+        });
+      }
 
       // Clean up progress bar
       if (animalData.progressBar) {

@@ -151,8 +151,6 @@ export class WeatherEffectsSystem {
       case "thunderstorm":
         this.createThunderstormEffect();
         break;
-      case "clear":
-      case "cloudy":
       default:
         // No effects for clear/cloudy
         break;

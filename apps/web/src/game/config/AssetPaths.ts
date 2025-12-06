@@ -23,6 +23,7 @@ export const ASSET_PATHS = {
     stone: "/assets/items/stone.png",
     cactus: "/assets/items/cactus.png",
     bone: "/assets/items/bone.png",
+    meat: "/assets/items/meat.png",
     wood: "/assets/items/wood.png",
     rope: "/assets/items/rope.png",
     shell: "/assets/items/shell.png",
@@ -72,6 +73,14 @@ export interface AnimalAnimationFrames {
   transitions: AnimalTransition[]; // Array of transition animations (walk patterns, actions, etc.)
 }
 
+/**
+ * Loot item configuration
+ */
+export interface LootItem {
+  itemId: string; // Item ID (e.g., "bone", "meat")
+  quantity: number; // Quantity to drop
+}
+
 // Animal configuration: frame dimensions and animation frames for each animal sprite sheet
 export interface AnimalConfig {
   key: string;
@@ -81,6 +90,7 @@ export interface AnimalConfig {
   scale?: number;
   animations: AnimalAnimationFrames;
   maxHp?: number; // Maximum HP (default: 1)
+  loot?: LootItem[]; // Loot items dropped when animal is killed
 }
 
 export const ANIMAL_CONFIGS: AnimalConfig[] = [
@@ -91,6 +101,10 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
     frameHeight: 32,
     scale: 2,
     maxHp: 1,
+    loot: [
+      { itemId: "bone", quantity: 1 },
+      { itemId: "meat", quantity: 1 },
+    ],
     animations: {
       idle: [0, 1, 2, 3], // Row 0: frames 0-3
       transitions: [
@@ -100,36 +114,57 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
       ],
     },
   },
-  // {
-  //   key: "miniBear",
-  //   path: ASSET_PATHS.animals.miniBear,
-  //   frameWidth: 80,
-  //   frameHeight: 64,
-  //   scale: 1.5,
-  //   animations: {
-  //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     transitions: [
-  //       { name: "walk1", frames: [4, 5, 6, 7] },
-  //       { name: "walk2", frames: [8, 9, 10, 11] },
-  //       { name: "walk3", frames: [12, 13, 14, 15] },
-  //     ],
-  //   },
-  // },
-  // {
-  //   key: "miniBird",
-  //   path: ASSET_PATHS.animals.miniBird,
-  //   frameWidth: 16,
-  //   frameHeight: 12,
-  //   scale: 3,
-  //   animations: {
-  //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     transitions: [
-  //       { name: "fly1", frames: [4, 5, 6, 7] },
-  //       { name: "fly2", frames: [8, 9, 10, 11] },
-  //       { name: "fly3", frames: [12, 13, 14, 15] },
-  //     ],
-  //   },
-  // },
+  {
+    key: "miniBear",
+    path: ASSET_PATHS.animals.miniBear,
+    frameWidth: 32,
+    frameHeight: 32,
+    scale: 2,
+    maxHp: 20,
+    loot: [
+      { itemId: "bone", quantity: 3 },
+      { itemId: "meat", quantity: 5 },
+    ],
+    animations: {
+      idle: [0, 1, 2, 3], // Row 0: frames 0-3
+      transitions: [
+        { name: "run", frames: [10, 11, 12, 13, 14, 15], type: "behavioral" },
+        { name: "jump", frames: [20, 21, 22], type: "behavioral" },
+        {
+          name: "attack",
+          frames: [30, 31, 32, 33, 34, 35],
+          type: "behavioral",
+        },
+        { name: "bite", frames: [40, 41, 42, 43, 44], type: "behavioral" },
+        {
+          name: "stand",
+          frames: [50, 51, 52, 53, 54, 55, 56, 57, 58, 59],
+          type: "behavioral",
+        },
+        { name: "hit", frames: [60, 61], type: "triggered" },
+        { name: "death", frames: [70, 71, 72, 73], type: "triggered" },
+      ],
+    },
+  },
+  {
+    key: "miniBird",
+    path: ASSET_PATHS.animals.miniBird,
+    frameWidth: 16,
+    frameHeight: 16,
+    scale: 2,
+    maxHp: 1,
+    loot: [
+      { itemId: "bone", quantity: 1 },
+      { itemId: "meat", quantity: 1 },
+    ],
+    animations: {
+      idle: [0, 1, 2, 3], // Row 0: frames 0-3
+      transitions: [
+        { name: "fly", frames: [4, 5, 6, 7], type: "behavioral" },
+        { name: "death", frames: [8, 9, 10, 11], type: "triggered" },
+      ],
+    },
+  },
   {
     key: "miniBoar",
     path: ASSET_PATHS.animals.miniBoar,
@@ -137,6 +172,10 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
     frameHeight: 32,
     scale: 2,
     maxHp: 5,
+    loot: [
+      { itemId: "bone", quantity: 2 },
+      { itemId: "meat", quantity: 3 },
+    ],
     animations: {
       idle: [0, 1, 2, 3], // Row 0: frames 0-3
       transitions: [
@@ -155,6 +194,10 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
     frameHeight: 32,
     scale: 2,
     maxHp: 3,
+    loot: [
+      { itemId: "bone", quantity: 1 },
+      { itemId: "meat", quantity: 2 },
+    ],
     animations: {
       idle: [0, 1, 2, 3], // Row 0: frames 0-3
       transitions: [
@@ -166,52 +209,89 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
       ],
     },
   },
-  // {
-  //   key: "miniDeer2",
-  //   path: ASSET_PATHS.animals.miniDeer2,
-  //   frameWidth: 56,
-  //   frameHeight: 56,
-  //   scale: 1.8,
-  //   animations: {
-  //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     transitions: [
-  //       { name: "walk1", frames: [4, 5, 6, 7] },
-  //       { name: "walk2", frames: [8, 9, 10, 11] },
-  //       { name: "walk3", frames: [12, 13, 14, 15] },
-  //       { name: "jump", frames: [16, 17, 18, 19] }, // Example: 5 transitions
-  //       { name: "run", frames: [20, 21, 22, 23] },
-  //     ],
-  //   },
-  // },
-  // {
-  //   key: "miniFox",
-  //   path: ASSET_PATHS.animals.miniFox,
-  //   frameWidth: 48,
-  //   frameHeight: 48,
-  //   scale: 2,
-  //   animations: {
-  //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     transitions: [
-  //       { name: "walk1", frames: [4, 5, 6, 7] },
-  //       { name: "walk2", frames: [8, 9, 10, 11] },
-  //       { name: "sneak", frames: [12, 13, 14, 15] },
-  //     ],
-  //   },
-  // },
-  // {
-  //   key: "miniWolf",
-  //   path: ASSET_PATHS.animals.miniWolf,
-  //   frameWidth: 56,
-  //   frameHeight: 64,
-  //   scale: 1.8,
-  //   animations: {
-  //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     transitions: [
-  //       { name: "walk1", frames: [4, 5, 6, 7] },
-  //       { name: "walk2", frames: [8, 9, 10, 11] },
-  //       { name: "run", frames: [12, 13, 14, 15] },
-  //       { name: "howl", frames: [16, 17, 18, 19] },
-  //     ],
-  //   },
-  // },
+  {
+    key: "miniDeer2",
+    path: ASSET_PATHS.animals.miniDeer2,
+    frameWidth: 32,
+    frameHeight: 32,
+    scale: 2,
+    maxHp: 3,
+    loot: [
+      { itemId: "bone", quantity: 1 },
+      { itemId: "meat", quantity: 2 },
+    ],
+    animations: {
+      idle: [0, 1, 2, 3], // Row 0: frames 0-3
+      transitions: [
+        { name: "run", frames: [7, 8, 9, 10], type: "behavioral" },
+        { name: "jump1", frames: [14, 15, 16], type: "behavioral" },
+        { name: "jump2", frames: [21, 22, 23, 24, 25], type: "behavioral" },
+        {
+          name: "jump3",
+          frames: [28, 29, 30, 31, 32, 33, 34],
+          type: "behavioral",
+        },
+        { name: "hit", frames: [35, 36], type: "triggered" },
+        { name: "death", frames: [42, 43, 44, 45], type: "triggered" },
+      ],
+    },
+  },
+  {
+    key: "miniFox",
+    path: ASSET_PATHS.animals.miniFox,
+    frameWidth: 32,
+    frameHeight: 32,
+    scale: 2,
+    maxHp: 5,
+    loot: [
+      { itemId: "bone", quantity: 2 },
+      { itemId: "meat", quantity: 3 },
+    ],
+    animations: {
+      idle: [0, 1, 2, 3], // Row 0: frames 0-3
+      transitions: [
+        { name: "walk", frames: [6, 7, 8, 9], type: "behavioral" },
+        { name: "jump", frames: [12, 13, 14], type: "behavioral" },
+        { name: "bark", frames: [18, 19, 20, 21, 22, 23], type: "behavioral" },
+        { name: "hit", frames: [24, 25], type: "behavioral" },
+        { name: "death", frames: [30, 31, 32, 33], type: "triggered" },
+      ],
+    },
+  },
+  {
+    key: "miniWolf",
+    path: ASSET_PATHS.animals.miniWolf,
+    frameWidth: 32,
+    frameHeight: 32,
+    scale: 2,
+    maxHp: 10,
+    loot: [
+      { itemId: "bone", quantity: 2 },
+      { itemId: "meat", quantity: 4 },
+    ],
+    animations: {
+      idle: [0, 1, 2, 3], // Row 0: frames 0-3
+      transitions: [
+        {
+          name: "run",
+          frames: [7, 8, 9, 10, 11, 12],
+          type: "behavioral",
+        },
+        {
+          name: "jump",
+          frames: [14, 15, 16, 17],
+          type: "behavioral",
+        },
+        { name: "bark", frames: [21, 22, 23, 24, 25], type: "behavioral" },
+        { name: "attack", frames: [28, 29, 30, 31, 32], type: "behavioral" },
+        {
+          name: "howl",
+          frames: [35, 36, 37, 38, 39, 40, 41],
+          type: "behavioral",
+        },
+        { name: "hit", frames: [42, 43], type: "triggered" },
+        { name: "death", frames: [49, 50, 51, 52], type: "triggered" },
+      ],
+    },
+  },
 ] as const;
