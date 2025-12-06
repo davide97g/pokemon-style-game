@@ -49,12 +49,21 @@ export const ASSET_PATHS = {
   },
 } as const;
 
-// Animation frame ranges for each transition
+/**
+ * Individual transition animation configuration
+ */
+export interface AnimalTransition {
+  name: string; // Transition name (e.g., "walk1", "walk2", "run", "jump")
+  frames: number[]; // Frame numbers for this transition
+}
+
+/**
+ * Animation frame ranges for each animal
+ * Each animal has an idle animation and an array of transitions
+ */
 export interface AnimalAnimationFrames {
-  idle: number[]; // Frames for idle animation (transition-0)
-  move1: number[]; // Frames for first moving animation (transition-1)
-  move2: number[]; // Frames for second moving animation (transition-2)
-  move3: number[]; // Frames for third moving animation (transition-3)
+  idle: number[]; // Frames for idle animation
+  transitions: AnimalTransition[]; // Array of transition animations (walk patterns, actions, etc.)
 }
 
 // Animal configuration: frame dimensions and animation frames for each animal sprite sheet
@@ -76,9 +85,11 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
     scale: 2,
     animations: {
       idle: [0, 1, 2, 3], // Row 0: frames 0-3
-      move1: [4, 5, 6, 7], // Row 1: frames 4-7
-      move2: [8, 9, 10, 11], // Row 2: frames 8-11
-      move3: [12, 13, 14, 15], // Row 3: frames 12-15
+      transitions: [
+        { name: "walk1", frames: [4, 5, 6, 7] }, // Row 1: frames 4-7
+        { name: "walk2", frames: [8, 9, 10, 11] }, // Row 2: frames 8-11
+        { name: "walk3", frames: [12, 13, 14, 15] }, // Row 3: frames 12-15
+      ],
     },
   },
   // {
@@ -89,9 +100,11 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
   //   scale: 1.5,
   //   animations: {
   //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     move1: [4, 5, 6, 7], // Row 1: frames 4-7
-  //     move2: [8, 9, 10, 11], // Row 2: frames 8-11
-  //     move3: [12, 13, 14, 15], // Row 3: frames 12-15
+  //     transitions: [
+  //       { name: "walk1", frames: [4, 5, 6, 7] },
+  //       { name: "walk2", frames: [8, 9, 10, 11] },
+  //       { name: "walk3", frames: [12, 13, 14, 15] },
+  //     ],
   //   },
   // },
   // {
@@ -102,9 +115,11 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
   //   scale: 3,
   //   animations: {
   //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     move1: [4, 5, 6, 7], // Row 1: frames 4-7
-  //     move2: [8, 9, 10, 11], // Row 2: frames 8-11
-  //     move3: [12, 13, 14, 15], // Row 3: frames 12-15
+  //     transitions: [
+  //       { name: "fly1", frames: [4, 5, 6, 7] },
+  //       { name: "fly2", frames: [8, 9, 10, 11] },
+  //       { name: "fly3", frames: [12, 13, 14, 15] },
+  //     ],
   //   },
   // },
   // {
@@ -115,9 +130,11 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
   //   scale: 2,
   //   animations: {
   //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     move1: [4, 5, 6, 7], // Row 1: frames 4-7
-  //     move2: [8, 9, 10, 11], // Row 2: frames 8-11
-  //     move3: [12, 13, 14, 15], // Row 3: frames 12-15
+  //     transitions: [
+  //       { name: "walk1", frames: [4, 5, 6, 7] },
+  //       { name: "walk2", frames: [8, 9, 10, 11] },
+  //       { name: "charge", frames: [12, 13, 14, 15] },
+  //     ],
   //   },
   // },
   // {
@@ -128,9 +145,11 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
   //   scale: 2,
   //   animations: {
   //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     move1: [4, 5, 6, 7], // Row 1: frames 4-7
-  //     move2: [8, 9, 10, 11], // Row 2: frames 8-11
-  //     move3: [12, 13, 14, 15], // Row 3: frames 12-15
+  //     transitions: [
+  //       { name: "walk1", frames: [4, 5, 6, 7] },
+  //       { name: "walk2", frames: [8, 9, 10, 11] },
+  //       { name: "run", frames: [12, 13, 14, 15] },
+  //     ],
   //   },
   // },
   // {
@@ -141,9 +160,13 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
   //   scale: 1.8,
   //   animations: {
   //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     move1: [4, 5, 6, 7], // Row 1: frames 4-7
-  //     move2: [8, 9, 10, 11], // Row 2: frames 8-11
-  //     move3: [12, 13, 14, 15], // Row 3: frames 12-15
+  //     transitions: [
+  //       { name: "walk1", frames: [4, 5, 6, 7] },
+  //       { name: "walk2", frames: [8, 9, 10, 11] },
+  //       { name: "walk3", frames: [12, 13, 14, 15] },
+  //       { name: "jump", frames: [16, 17, 18, 19] }, // Example: 5 transitions
+  //       { name: "run", frames: [20, 21, 22, 23] },
+  //     ],
   //   },
   // },
   // {
@@ -154,9 +177,11 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
   //   scale: 2,
   //   animations: {
   //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     move1: [4, 5, 6, 7], // Row 1: frames 4-7
-  //     move2: [8, 9, 10, 11], // Row 2: frames 8-11
-  //     move3: [12, 13, 14, 15], // Row 3: frames 12-15
+  //     transitions: [
+  //       { name: "walk1", frames: [4, 5, 6, 7] },
+  //       { name: "walk2", frames: [8, 9, 10, 11] },
+  //       { name: "sneak", frames: [12, 13, 14, 15] },
+  //     ],
   //   },
   // },
   // {
@@ -167,9 +192,12 @@ export const ANIMAL_CONFIGS: AnimalConfig[] = [
   //   scale: 1.8,
   //   animations: {
   //     idle: [0, 1, 2, 3], // Row 0: frames 0-3
-  //     move1: [4, 5, 6, 7], // Row 1: frames 4-7
-  //     move2: [8, 9, 10, 11], // Row 2: frames 8-11
-  //     move3: [12, 13, 14, 15], // Row 3: frames 12-15
+  //     transitions: [
+  //       { name: "walk1", frames: [4, 5, 6, 7] },
+  //       { name: "walk2", frames: [8, 9, 10, 11] },
+  //       { name: "run", frames: [12, 13, 14, 15] },
+  //       { name: "howl", frames: [16, 17, 18, 19] },
+  //     ],
   //   },
   // },
 ] as const;
