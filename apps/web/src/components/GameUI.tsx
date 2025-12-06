@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import packageJson from "../../package.json";
 import { type InventoryItem, ITEM_TYPES } from "../game/config/GameConstants";
 import { gameEventBus } from "../game/utils/GameEventBus";
@@ -29,6 +29,9 @@ const GameUI = ({ worldId }: GameUIProps) => {
   const [notifications, setNotifications] = useState<
     Array<{ id: string; itemId: string; quantity: number }>
   >([]);
+  const notificationTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(
+    new Map(),
+  );
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   // Initialize inventory from ITEM_TYPES
@@ -165,18 +168,57 @@ const GameUI = ({ worldId }: GameUIProps) => {
           itemId: string;
           quantity: number;
         };
-        const notificationId = `${itemId}-${Date.now()}`;
-        setNotifications((prev) => [
-          ...prev,
-          { id: notificationId, itemId, quantity },
-        ]);
 
-        // Auto-remove notification after 3 seconds
-        setTimeout(() => {
-          setNotifications((prev) =>
-            prev.filter((n) => n.id !== notificationId),
-          );
-        }, 3000);
+        setNotifications((prev) => {
+          // Check if there's already an active notification for this item
+          const existingNotification = prev.find((n) => n.itemId === itemId);
+
+          if (existingNotification) {
+            // Update existing notification by incrementing quantity
+            // Clear the existing timeout
+            const existingTimeout = notificationTimeoutsRef.current.get(
+              existingNotification.id,
+            );
+            if (existingTimeout) {
+              clearTimeout(existingTimeout);
+            }
+
+            // Create new timeout for the updated notification
+            const timeoutId = setTimeout(() => {
+              setNotifications((current) =>
+                current.filter((n) => n.id !== existingNotification.id),
+              );
+              notificationTimeoutsRef.current.delete(existingNotification.id);
+            }, 3000);
+
+            notificationTimeoutsRef.current.set(
+              existingNotification.id,
+              timeoutId,
+            );
+
+            // Return updated notifications with incremented quantity
+            return prev.map((n) =>
+              n.id === existingNotification.id
+                ? { ...n, quantity: n.quantity + quantity }
+                : n,
+            );
+          } else {
+            // Create new notification if item not present
+            const notificationId = `${itemId}-${Date.now()}`;
+
+            // Create timeout for new notification
+            const timeoutId = setTimeout(() => {
+              setNotifications((current) =>
+                current.filter((n) => n.id !== notificationId),
+              );
+              notificationTimeoutsRef.current.delete(notificationId);
+            }, 3000);
+
+            notificationTimeoutsRef.current.set(notificationId, timeoutId);
+
+            return [...prev, { id: notificationId, itemId, quantity }];
+          }
+        });
       }
     };
 
@@ -213,6 +255,11 @@ const GameUI = ({ worldId }: GameUIProps) => {
       unsubscribers.forEach((unsub) => {
         unsub();
       });
+      // Clean up all notification timeouts
+      notificationTimeoutsRef.current.forEach((timeout) => {
+        clearTimeout(timeout);
+      });
+      notificationTimeoutsRef.current.clear();
     };
   }, []);
 
