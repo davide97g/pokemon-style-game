@@ -5,7 +5,11 @@
  */
 
 import Phaser from "phaser";
-import { ASSET_PATHS } from "./config/AssetPaths";
+import {
+  ANIMAL_CONFIGS,
+  type AnimalConfig,
+  ASSET_PATHS,
+} from "./config/AssetPaths";
 import { AUTO_SAVE_INTERVAL, MIN_SAVE_INTERVAL } from "./config/GameConstants";
 import { Player } from "./entities/Player";
 import {
@@ -67,6 +71,14 @@ export class GameScene extends Phaser.Scene {
   private autoSaveInterval?: number;
   private lastSaveTime: number = 0;
 
+  // Animal sprites
+  private animals: Array<{
+    sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
+    config: AnimalConfig;
+    currentDirection?: { x: number; y: number };
+    animationTimer?: Phaser.Time.TimerEvent;
+  }> = [];
+
   constructor() {
     super({ key: "GameScene" });
   }
@@ -102,6 +114,14 @@ export class GameScene extends Phaser.Scene {
     if (this.tileInfoPopup) {
       this.tileInfoPopup.destroy();
     }
+
+    // Clean up animal animation timers
+    this.animals.forEach((animal) => {
+      if (animal.animationTimer) {
+        animal.animationTimer.remove();
+      }
+    });
+    this.animals = [];
   }
 
   preload(): void {
@@ -120,6 +140,15 @@ export class GameScene extends Phaser.Scene {
     // Load item images
     Object.entries(ASSET_PATHS.items).forEach(([key, path]) => {
       this.load.image(key, path);
+    });
+
+    // Load all animal spritesheets
+    // Each sprite sheet is a 4x4 grid (16 frames total)
+    ANIMAL_CONFIGS.forEach((config) => {
+      this.load.spritesheet(config.key, config.path, {
+        frameWidth: config.frameWidth,
+        frameHeight: config.frameHeight,
+      });
     });
   }
 
@@ -303,6 +332,9 @@ export class GameScene extends Phaser.Scene {
 
     // Initialize save system
     this.initSaveSystem();
+
+    // Setup all animals with random quantities and placement
+    this.setupAnimals();
   }
 
   /**
@@ -857,6 +889,9 @@ export class GameScene extends Phaser.Scene {
     // Update progress bars visibility based on proximity
     this.collectionSystem?.updateProgressBarsVisibility();
 
+    // Update all animals movement
+    this.updateAnimals();
+
     // Periodically save player position (throttled)
     const now = Date.now();
     if (now - this.lastSaveTime > MIN_SAVE_INTERVAL * 2) {
@@ -1054,6 +1089,233 @@ export class GameScene extends Phaser.Scene {
         return;
       }
       this.inventorySystem?.toggleInventory();
+    });
+  }
+
+  /**
+   * Setup all animals with random quantities and placement
+   */
+  private setupAnimals(): void {
+    if (!this.gameMap || !this.worldLayer) return;
+
+    // Create animations for all animals
+    ANIMAL_CONFIGS.forEach((config) => {
+      this.createAnimalAnimations(config);
+    });
+
+    // Get map bounds for random placement
+    const mapWidth = this.gameMap.widthInPixels;
+    const mapHeight = this.gameMap.heightInPixels;
+
+    // Spawn 30 bunnies only
+    const bunnyConfig = ANIMAL_CONFIGS.find(
+      (config) => config.key === "miniBunny",
+    );
+    if (bunnyConfig) {
+      for (let i = 0; i < 30; i++) {
+        // Random position within map bounds
+        const x = Math.random() * mapWidth;
+        const y = Math.random() * mapHeight;
+
+        this.spawnAnimal(bunnyConfig, x, y);
+      }
+    }
+
+    // Spawn random quantities of each animal type (2-5 of each)
+    // ANIMAL_CONFIGS.forEach((config) => {
+    //   const quantity = Math.floor(Math.random() * 4) + 2; // 2-5 animals
+
+    //   for (let i = 0; i < quantity; i++) {
+    //     // Random position within map bounds
+    //     const x = Math.random() * mapWidth;
+    //     const y = Math.random() * mapHeight;
+
+    //     this.spawnAnimal(config, x, y);
+    //   }
+    // });
+  }
+
+  /**
+   * Create animations for an animal using custom frame configurations
+   * Each animal can have different frame ranges for its animations
+   */
+  private createAnimalAnimations(config: AnimalConfig): void {
+    // Helper function to create frames from an array of frame numbers
+    // Since frames are consecutive, we use generateFrameNumbers with start/end
+    const createFramesFromArray = (frameNumbers: number[]) => {
+      if (frameNumbers.length === 0) return [];
+      const start = Math.min(...frameNumbers);
+      const end = Math.max(...frameNumbers);
+      // Use generateFrameNumbers which works correctly for spritesheets
+      return this.anims.generateFrameNumbers(config.key, { start, end });
+    };
+
+    // Idle animation (transition-0)
+    this.anims.create({
+      key: `${config.key}-transition-0`,
+      frames: createFramesFromArray(config.animations.idle),
+      frameRate: 8,
+      repeat: -1,
+    });
+
+    // First moving animation (transition-1)
+    this.anims.create({
+      key: `${config.key}-transition-1`,
+      frames: createFramesFromArray(config.animations.move1),
+      frameRate: 8,
+      repeat: -1,
+    });
+
+    // Second moving animation (transition-2)
+    this.anims.create({
+      key: `${config.key}-transition-2`,
+      frames: createFramesFromArray(config.animations.move2),
+      frameRate: 8,
+      repeat: -1,
+    });
+
+    // Third moving animation (transition-3)
+    this.anims.create({
+      key: `${config.key}-transition-3`,
+      frames: createFramesFromArray(config.animations.move3),
+      frameRate: 8,
+      repeat: -1,
+    });
+  }
+
+  /**
+   * Spawn a single animal at the given position
+   */
+  private spawnAnimal(config: AnimalConfig, x: number, y: number): void {
+    // Create physics sprite - start with frame 0 (first frame of first row)
+    const sprite = this.physics.add
+      .sprite(x, y, config.key, 0)
+      .setScale(config.scale || 2);
+
+    // Set collision body size based on frame dimensions
+    const scaledWidth = config.frameWidth * (config.scale || 2) * 0.75;
+    const scaledHeight = config.frameHeight * (config.scale || 2) * 0.75;
+    sprite.setSize(scaledWidth, scaledHeight);
+    sprite.setOffset(
+      config.frameWidth * (config.scale || 2) * 0.125,
+      config.frameHeight * (config.scale || 2) * 0.125,
+    );
+
+    // Add collision with player
+    if (this.player) {
+      this.physics.add.collider(sprite, this.player.getSprite());
+    }
+
+    // Add collision with world layer
+    if (this.worldLayer) {
+      this.physics.add.collider(sprite, this.worldLayer);
+    }
+
+    // Select initial animation
+    const animalData: {
+      sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
+      config: AnimalConfig;
+      currentDirection?: { x: number; y: number };
+      animationTimer?: Phaser.Time.TimerEvent;
+    } = {
+      sprite,
+      config,
+      currentDirection: undefined,
+      animationTimer: undefined,
+    };
+
+    // Play initial animation immediately
+    this.selectAnimalAnimation(animalData);
+
+    // Set up timer to change animation every 2 seconds
+    animalData.animationTimer = this.time.addEvent({
+      delay: 2000,
+      callback: () => {
+        this.selectAnimalAnimation(animalData);
+      },
+      loop: true,
+    });
+
+    this.animals.push(animalData);
+  }
+
+  /**
+   * Select animal animation with weighted distribution:
+   * - Idle (transition-0): 50%
+   * - Moving animations (transition-1, 2, 3): 16.67% each
+   */
+  private selectAnimalAnimation(animalData: {
+    sprite: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
+    config: AnimalConfig;
+    currentDirection?: { x: number; y: number };
+  }): void {
+    const random = Math.random();
+    let selectedTransition: number;
+    let isMoving = false;
+
+    // Weighted random selection: 50% idle, 50% split between 3 moving animations
+    if (random < 0.5) {
+      // 50% chance for idle
+      selectedTransition = 0;
+      isMoving = false;
+    } else if (random < 0.6667) {
+      // 16.67% chance for transition-1
+      selectedTransition = 1;
+      isMoving = true;
+    } else if (random < 0.8333) {
+      // 16.67% chance for transition-2
+      selectedTransition = 2;
+      isMoving = true;
+    } else {
+      // 16.67% chance for transition-3
+      selectedTransition = 3;
+      isMoving = true;
+    }
+
+    const animationKey = `${animalData.config.key}-transition-${selectedTransition}`;
+
+    // Verify animation exists
+    if (!this.anims.exists(animationKey)) {
+      console.warn(`Animation ${animationKey} does not exist`);
+      return;
+    }
+
+    // Stop any current animation
+    if (animalData.sprite.anims) {
+      animalData.sprite.anims.stop();
+    }
+
+    // Play the new animation - restart from beginning
+    animalData.sprite.play(animationKey, true);
+
+    // Set movement direction if moving
+    if (isMoving) {
+      // Random direction for movement
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 50; // Slower than player
+      animalData.currentDirection = {
+        x: Math.cos(angle) * speed,
+        y: Math.sin(angle) * speed,
+      };
+    } else {
+      // Stop movement for idle
+      animalData.currentDirection = undefined;
+      animalData.sprite.body.setVelocity(0, 0);
+    }
+  }
+
+  /**
+   * Update all animals movement based on current animations
+   */
+  private updateAnimals(): void {
+    this.animals.forEach((animalData) => {
+      // Apply movement if direction is set (moving animation)
+      if (animalData.currentDirection) {
+        animalData.sprite.body.setVelocity(
+          animalData.currentDirection.x,
+          animalData.currentDirection.y,
+        );
+      }
     });
   }
 }
